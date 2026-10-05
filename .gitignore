@@ -1,0 +1,11 @@
+# Installed packages (recreate with `npm install`)
+node_modules/
+
+# Local database file: each developer has their own
+data/*.db
+data/*.db-*
+
+# OS / editor clutter
+.DS_Store
+.vscode/
+.env
