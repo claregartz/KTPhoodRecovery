@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Makes the page fit phone screens instead of showing a zoomed-out desktop page -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2f7d4f">
+  <title>Freedge</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Freedge</h1>
+      <p class="subtitle" id="last-updated">Loading…</p>
+    </div>
+    <button type="button" class="icon-btn" id="refresh-btn" aria-label="Refresh list">⟳</button>
+  </header>
+
+  <main>
+    <!-- Error messages appear here -->
+    <p class="banner" id="error-banner" role="alert" hidden></p>
+
+    <!-- app.js fills this list with one <li> per item -->
+    <ul class="item-list" id="item-list" aria-live="polite"></ul>
+
+    <p class="empty-state" id="empty-state" hidden>
+      The fridge is empty right now.<br>Added something? Tap <strong>Add item</strong>.
+    </p>
+  </main>
+
+  <!-- Sticks to the bottom of the screen, where thumbs can reach it -->
+  <footer class="bottombar">
+    <button type="button" class="btn btn-primary btn-block" id="open-add-btn">+ Add item</button>
+  </footer>
+
+  <!-- The "Add item" form. <dialog> is a built-in HTML popup. -->
+  <dialog id="add-dialog" aria-labelledby="add-title">
+    <form id="add-form" novalidate>
+      <h2 id="add-title">Add an item</h2>
+
+      <label for="add-name">What is it?</label>
+      <input id="add-name" name="name" type="text" maxlength="100"
+             placeholder="e.g. Lasagna" autocomplete="off" required>
+
+      <div class="row">
+        <div class="field">
+          <label for="add-quantity">How many?</label>
+          <input id="add-quantity" name="quantity" type="number"
+                 inputmode="numeric" min="1" step="1" value="1" required>
+        </div>
+        <div class="field">
+          <label for="add-unit">Unit</label>
+          <select id="add-unit" name="unit" required></select>
+        </div>
+      </div>
+
+      <p class="form-error" id="add-error" role="alert" hidden></p>
+
+      <div class="row actions">
+        <button type="button" class="btn" id="cancel-add-btn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add to fridge</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
