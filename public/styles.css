@@ -1,0 +1,182 @@
+/*
+  Mobile-first styles: the base rules are for phones. The @media rule
+  near the bottom adjusts the layout for wider screens.
+*/
+
+/* Colors live in variables so the dark theme only has to swap them. */
+:root {
+  --bg: #f6f5f1;
+  --card: #ffffff;
+  --text: #1d1d1b;
+  --muted: #6b6b66;
+  --border: #e2e0d9;
+  --accent: #2f7d4f;
+  --accent-text: #ffffff;
+  --danger: #b3261e;
+  --danger-bg: #fbeaea;
+  --radius: 14px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161715;
+    --card: #222420;
+    --text: #ecebe6;
+    --muted: #a3a29b;
+    --border: #363833;
+    --accent: #5cb27f;
+    --accent-text: #0e1a12;
+    --danger: #f2a49e;
+    --danger-bg: #3a1f1d;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  background: var(--bg);
+  color: var(--text);
+  /* Leave room so the last card isn't hidden behind the bottom bar */
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ---- Top bar ---- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+h1 { margin: 0; font-size: 1.5rem; }
+.subtitle { margin: 2px 0 0; color: var(--muted); font-size: 0.875rem; }
+
+main { padding: 16px; max-width: 640px; margin: 0 auto; }
+
+/* ---- Buttons ---- */
+.btn {
+  min-height: 44px; /* Apple's recommended minimum tap target */
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.btn-danger { color: var(--danger); }
+.btn-danger-solid { background: var(--danger); border-color: var(--danger); color: var(--card); }
+.btn-block { width: 100%; }
+
+.icon-btn {
+  width: 44px; height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--text);
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+.icon-btn.spinning { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Item cards ---- */
+.item-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+
+.item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.item-name { margin: 0; font-size: 1.125rem; font-weight: 700; overflow-wrap: anywhere; }
+.item-meta { margin: 2px 0 12px; color: var(--muted); }
+.item-qty { color: var(--text); font-weight: 600; }
+
+.item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.item-actions .btn { flex: 1 1 0; }
+
+/* The "Take how many?" and "Mark empty?" panels that open inside a card */
+.item-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.item-panel p { margin: 0; flex: 1 1 100%; }
+.item-panel input { width: 5.5rem; }
+.item-panel .btn { flex: 1 1 0; }
+
+/* ---- Messages ---- */
+.banner, .form-error {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.banner { margin: 0 0 12px; }
+.empty-state { text-align: center; color: var(--muted); margin-top: 48px; }
+
+/* ---- Bottom bar ---- */
+.bottombar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.bottombar .btn { max-width: 608px; margin: 0 auto; display: block; min-height: 52px; font-size: 1.05rem; }
+
+/* ---- Add dialog ---- */
+dialog {
+  width: min(100% - 32px, 440px);
+  border: none;
+  border-radius: var(--radius);
+  padding: 20px;
+  background: var(--card);
+  color: var(--text);
+}
+dialog::backdrop { background: rgb(0 0 0 / 0.45); }
+dialog h2 { margin: 0 0 12px; }
+
+label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 0.9rem; }
+input, select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  /* 16px or larger stops iPhones from zooming in when you tap a field */
+  font: inherit;
+  font-size: 16px;
+}
+.row { display: flex; gap: 12px; }
+.field { flex: 1 1 0; min-width: 0; }
+.actions { margin-top: 20px; }
+.actions .btn { flex: 1 1 0; }
+.form-error { margin: 12px 0 0; }
+
+/* ---- Wider screens (tablets / laptops) ---- */
+@media (min-width: 700px) {
+  main { padding-top: 24px; }
+  .item-list { gap: 16px; }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "ktphoodrecovery",
+  "version": "0.1.0",
+  "description": "Live inventory for the Cornell Food Recovery Network community freedge",
+  "private": true,
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.2.1"
+  }
+}
