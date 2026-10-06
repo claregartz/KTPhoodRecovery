@@ -1,13 +1,25 @@
-// Frontend logic: talks to the API and draws the item list.
+// Frontend logic: talks to the Supabase database and draws the item list.
 //
 // The pattern used throughout:
-//   1. Ask the API for data (fetch).
+//   1. Ask the database for data.
 //   2. Store it in `state`.
 //   3. Call render() to redraw the page from `state`.
 // Because the page is always drawn from `state`, it can't show something
-// different from what we last got back from the server.
+// different from what we last got back from the database.
 
-const AUTO_REFRESH_MS = 30_000; // re-check the fridge every 30 seconds
+// Backup in case a live update is missed (e.g. the phone was asleep).
+const AUTO_REFRESH_MS = 30_000;
+
+// Units a person can choose when adding an item. Must match the list in
+// supabase/schema.sql, which is what actually enforces it.
+const UNITS = ['servings', 'items', 'containers', 'bags'];
+
+// `supabase` comes from the library loaded in index.html; FREEDGE_CONFIG
+// comes from config.js.
+const db = supabase.createClient(
+  window.FREEDGE_CONFIG.supabaseUrl,
+  window.FREEDGE_CONFIG.supabaseAnonKey
+);
 
 const state = {
   items: [],
@@ -15,6 +27,9 @@ const state = {
   // Which card has its "take how many?" or "mark empty?" panel open,
   // e.g. { id: 3, type: 'take' }. Only one at a time.
   openPanel: null,
+  // True when someone else changed the fridge while this person was busy
+  // typing, so we reload once they're done.
+  stale: false,
 };
 
 // Grab the page elements we need once, up front.
@@ -35,29 +50,37 @@ const els = {
 };
 
 // ---------------------------------------------------------------------------
-// Talking to the API
+// Talking to the database
 // ---------------------------------------------------------------------------
 
-// A small wrapper around fetch(). It sends/receives JSON and turns API
-// errors (like 400 "Only 3 servings left") into thrown Errors with the
-// server's message, so callers can just use try/catch.
-async function api(path, options = {}) {
-  const response = await fetch(`/api${path}`, {
-    method: options.method || 'GET',
-    headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(data?.error || `Request failed (${response.status})`);
-  }
+// Supabase returns { data, error } instead of throwing. This turns errors
+// (like "Only 3 servings of Lasagna left.") into thrown Errors with that
+// message, so callers can just use try/catch.
+async function query(request) {
+  const { data, error } = await request;
+  if (error) throw new Error(error.message);
   return data;
+}
+
+// Changes go through the functions in supabase/schema.sql, which check the
+// input and enforce the rules. The app isn't allowed to write to the table
+// directly.
+function callFunction(name, args) {
+  return query(db.rpc(name, args));
 }
 
 async function loadItems() {
   els.refreshBtn.classList.add('spinning');
+  state.stale = false;
   try {
-    state.items = await api('/items');
+    // Every item that isn't empty, newest first
+    state.items = await query(
+      db.from('items')
+        .select('*')
+        .gt('quantity', 0)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+    );
     state.lastLoaded = new Date();
     // If the item whose panel was open is gone (someone emptied it), close it.
     if (state.openPanel && !state.items.some((i) => i.id === state.openPanel.id)) {
@@ -72,22 +95,11 @@ async function loadItems() {
   }
 }
 
-async function loadUnits() {
-  try {
-    const units = await api('/units');
-    els.addUnit.replaceChildren(
-      ...units.map((unit) => new Option(unit, unit))
-    );
-  } catch (err) {
-    showError(`Couldn't load units: ${err.message}`);
-  }
-}
-
 // Runs an action (take / empty), then reloads the list so everyone's
 // changes, not just ours, show up.
-async function runItemAction(path, body) {
+async function runItemAction(name, args) {
   try {
-    await api(path, { method: 'POST', body });
+    await callFunction(name, args);
     state.openPanel = null;
   } catch (err) {
     showError(err.message);
@@ -96,11 +108,11 @@ async function runItemAction(path, body) {
 }
 
 function takeItem(id, amount) {
-  return runItemAction(`/items/${id}/take`, { amount });
+  return runItemAction('take_item', { p_id: id, p_amount: amount });
 }
 
 function emptyItem(id) {
-  return runItemAction(`/items/${id}/empty`);
+  return runItemAction('empty_item', { p_id: id });
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +226,8 @@ function togglePanel(id, type) {
 
 function closePanel() {
   state.openPanel = null;
-  render();
+  if (state.stale) loadItems();
+  else render();
 }
 
 // "1 servings" reads oddly, so drop the trailing "s" for a quantity of 1.
@@ -264,8 +277,8 @@ els.addForm.addEventListener('submit', async (event) => {
     unit: els.addUnit.value,
   };
 
-  // Quick checks for instant feedback. The server checks again, because
-  // anyone can send requests to the API without using this page.
+  // Quick checks for instant feedback. The database checks again, because
+  // anyone can call it without using this page.
   if (!item.name) return showAddError('Please enter a name.');
   if (!Number.isInteger(item.quantity) || item.quantity < 1) {
     return showAddError('Quantity must be a whole number of at least 1.');
@@ -273,7 +286,11 @@ els.addForm.addEventListener('submit', async (event) => {
 
   submitBtn.disabled = true; // prevent double-taps from adding it twice
   try {
-    await api('/items', { method: 'POST', body: item });
+    await callFunction('add_item', {
+      p_name: item.name,
+      p_quantity: item.quantity,
+      p_unit: item.unit,
+    });
     els.addDialog.close();
     await loadItems();
   } catch (err) {
@@ -294,14 +311,30 @@ function showAddError(message) {
 
 els.refreshBtn.addEventListener('click', loadItems);
 
-// Re-check periodically, and whenever the person comes back to the tab.
-// Skip if they're in the middle of typing, so we don't wipe their input.
+// Reload, unless the person is in the middle of typing: redrawing would
+// wipe their input, so remember to reload once they're done instead.
 function refreshIfIdle() {
   const busy = state.openPanel || els.addDialog.open;
-  if (!busy && document.visibilityState === 'visible') loadItems();
+  if (busy) {
+    state.stale = true;
+  } else if (document.visibilityState === 'visible') {
+    loadItems();
+  }
 }
+
+// Live updates: Supabase tells us the moment anyone adds, takes, or empties
+// something, and we reload the list.
+db.channel('items-changes')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, refreshIfIdle)
+  .subscribe();
+
+// Backups: re-check periodically, and whenever the person comes back to
+// the app.
 setInterval(refreshIfIdle, AUTO_REFRESH_MS);
 document.addEventListener('visibilitychange', refreshIfIdle);
+els.addDialog.addEventListener('close', () => {
+  if (state.stale) loadItems();
+});
 
-loadUnits();
+els.addUnit.replaceChildren(...UNITS.map((unit) => new Option(unit, unit)));
 loadItems();

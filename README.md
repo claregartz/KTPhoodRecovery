@@ -19,7 +19,7 @@ at a glance and lets anyone keep that answer accurate.
 3. [Running it locally](#running-it-locally)
 4. [How it works (architecture)](#how-it-works-architecture)
 5. [Project structure](#project-structure)
-6. [API endpoints](#api-endpoints)
+6. [Database functions](#database-functions)
 7. [Known limitations](#known-limitations)
 8. [Team workflow and git guide](#team-workflow-and-git-guide)
 
@@ -38,28 +38,31 @@ at a glance and lets anyone keep that answer accurate.
 - **Empty items disappear:** when the quantity reaches 0 (by taking or by
   marking empty), the item is hidden from the list. It stays in the database
   with an `emptied_at` timestamp so history isn't lost.
-- **Stays fresh:** the list refreshes every 30 seconds, whenever you
-  return to the tab, and when you tap ⟳.
+- **Shared and live:** everyone sees the same fridge. When anyone changes
+  something, every open copy of the app updates within a second or two.
 
 ## Tech stack
 
 | Tier | Technology | Why we chose it |
 |---|---|---|
 | Frontend (client) | Plain **HTML, CSS, JavaScript** | No framework or build step, so every line is readable. One page doesn't need React. |
-| Application server (REST API) | **Node.js** + **Express** | JavaScript on the server too, so the whole app uses one language. Express is the most widely used, best-documented Node web library. |
-| Database | **SQLite** (via `better-sqlite3`) | The whole database is one file: nothing to install and no account. It uses real SQL, so moving to Postgres later is a small change. |
+| Database (hosted) | **Supabase** (Postgres) | A free hosted database everyone's phone talks to, so an item added on one phone shows up on all of them. It uses real SQL and pushes live updates, and we don't have to run a server. |
+| iPhone app (coming next) | **Capacitor** + **Xcode** | Wraps these same web files into an iOS app we can test with TestFlight. |
 
 ## Running it locally
 
-### 1. Install Node.js (one time)
+### 1. Set up the database (one time, for the whole team)
 
-Download the **LTS** version from <https://nodejs.org> (version 20 or newer).
-Check that it worked:
+Only one person needs to do this.
 
-```bash
-node -v   # should print v20.x.x or higher
-npm -v
-```
+1. Create a free project at <https://supabase.com>.
+2. In the dashboard, open **SQL Editor → New query**, paste in all of
+   `supabase/schema.sql`, and click **Run**. This creates the `items` table,
+   its rules, and live updates.
+3. Open **Project Settings → API**. Copy the **Project URL** and the
+   **anon public** key into `public/config.js`, then commit it.
+   (The anon key is meant to be public. **Never** commit the `service_role`
+   key.)
 
 ### 2. Get the code (one time)
 
@@ -68,26 +71,21 @@ git clone https://github.com/claregartz/KTPhoodRecovery.git
 cd KTPhoodRecovery
 ```
 
-### 3. Install dependencies
+### 3. Start the app
+
+The app is just files in `public/`, so any static file server works. If you
+have [Node.js](https://nodejs.org) (version 20 or newer):
 
 ```bash
-npm install
+npm start
 ```
 
-This reads `package.json` and downloads Express and better-sqlite3 into
-`node_modules/`. Run it again whenever `package.json` changes (for example,
-after pulling a teammate's work).
+Open the address it prints (usually <http://localhost:3000>). No Node? Use
+`python3 -m http.server 3000 --directory public` and open
+<http://localhost:3000>.
 
-### 4. Start the app
-
-```bash
-npm run dev     # restarts automatically when you save a server file
-# or
-npm start       # plain start, no auto-restart
-```
-
-Open <http://localhost:3000>. The database file `data/freedge.db` is
-created automatically on first run.
+Everyone shares the **same** database, so items you add are real and show
+up for everyone. Open the app in two browser windows to watch live updates.
 
 **Try it on your phone:** with your phone on the same Wi-Fi as your laptop,
 find your laptop's local IP (Mac: System Settings → Wi-Fi → Details) and open
@@ -95,46 +93,34 @@ find your laptop's local IP (Mac: System Settings → Wi-Fi → Details) and ope
 If it does, use your browser's mobile view instead (Chrome: right-click →
 Inspect → phone icon).
 
-**Reset your local data:** stop the server (Ctrl+C), delete
-`data/freedge.db`, and start again.
-
-**Settings (optional environment variables):**
-
-| Variable | Default | What it does |
-|---|---|---|
-| `PORT` | `3000` | Port the server listens on |
-| `DB_PATH` | `data/freedge.db` | Where the SQLite file lives |
-
-Example: `PORT=4000 npm start`
+**See or edit the data directly:** Supabase dashboard → **Table Editor →
+items**.
 
 ## How it works (architecture)
 
-The app follows the standard **three-tier client-server** model:
-
 ```
- ┌──────────────────┐   HTTP + JSON    ┌──────────────────────┐    SQL     ┌─────────────┐
- │  Frontend        │ ───────────────► │  REST API            │ ─────────► │  Database   │
- │  (phone browser) │ ◄─────────────── │  (Express server)    │ ◄───────── │  (SQLite)   │
- │  public/         │                  │  server/             │            │  data/      │
- └──────────────────┘                  └──────────────────────┘            └─────────────┘
+ ┌──────────────────┐   HTTPS (supabase-js)   ┌───────────────────────────┐
+ │  Frontend        │ ──────────────────────► │  Supabase (Postgres)      │
+ │  (phone/browser) │ ◄────────────────────── │  items table + functions  │
+ │  public/         │   live updates          │  supabase/schema.sql      │
+ └──────────────────┘                         └───────────────────────────┘
 ```
 
-1. The browser loads `index.html`, `styles.css`, and `app.js` from the server.
-2. `app.js` calls the API, e.g. `GET /api/items`.
-3. The API checks the request, runs SQL against the database, and replies
-   with JSON.
-4. `app.js` redraws the list from that JSON.
-
-One Express process serves both the frontend files and the API. That's
-simpler to run and deploy, and it's still three separate tiers in the code.
+1. The browser loads `index.html`, `styles.css`, `config.js`, and `app.js`.
+2. `app.js` reads the list straight from the `items` table.
+3. To change anything, `app.js` calls a database function (`add_item`,
+   `take_item`, `empty_item`). The function checks the input, updates the
+   table, and returns the item, or an error message the app shows as-is.
+4. Supabase Realtime tells every open copy of the app that something
+   changed, and each one reloads its list.
 
 **Key design decisions:**
 
-- **The rules live on the server.** "Quantity can't go below 0" and
-  "quantity 0 means empty" are enforced in `server/routes/items.js` and by
-  database constraints. Anyone can send requests to an API without using our
-  page, so the frontend's checks only give quick feedback; the server's
-  checks are the real ones.
+- **The rules live in the database.** There's no server of our own, and the
+  anon key in `config.js` is visible to anyone who looks. So the database
+  only lets the public **read** the table (a row level security policy).
+  All writes go through the three functions, which do the real checks. The
+  frontend's checks only give quick feedback.
 - **"Take 2", not "set to 8".** If two people both see 10 servings and each
   take 2, sending "set quantity to 8" twice would give 8 (wrong). Sending
   "take 2" twice lets the database do `quantity = quantity - 2` each time,
@@ -147,51 +133,52 @@ simpler to run and deploy, and it's still three separate tiers in the code.
 ```
 KTPhoodRecovery/
 ├── README.md            ← you are here
-├── package.json         ← project info, dependencies, npm scripts
-├── package-lock.json    ← exact dependency versions (commit it, don't edit by hand)
-├── .gitignore           ← files git should ignore (node_modules, database)
-├── server/              ← application server (tier 2)
-│   ├── index.js         ← starts Express, serves public/, mounts the API
-│   ├── db.js            ← opens SQLite, creates the items table, lists allowed units
-│   └── routes/
-│       └── items.js     ← all API endpoints + input validation
-├── public/              ← frontend (tier 1), sent to the browser as-is
-│   ├── index.html       ← page structure
-│   ├── styles.css       ← mobile-first styling (supports light/dark mode)
-│   └── app.js           ← calls the API, draws the list, handles buttons
-└── data/                ← database (tier 3)
-    └── freedge.db       ← created on first run, NOT committed to git
+├── package.json         ← project info and the `npm start` script
+├── .gitignore           ← files git should ignore
+├── supabase/
+│   └── schema.sql       ← table, permissions, and functions. Run in Supabase's SQL Editor
+└── public/              ← the app itself
+    ├── index.html       ← page structure
+    ├── styles.css       ← mobile-first styling (supports light/dark mode)
+    ├── config.js        ← Supabase project URL + anon key
+    └── app.js           ← reads/writes the database, draws the list, handles buttons
 ```
 
 ### Database table: `items`
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | INTEGER, primary key | Auto-numbered |
-| `name` | TEXT | 1–100 characters |
-| `quantity` | INTEGER | ≥ 0. **0 means empty** |
-| `unit` | TEXT | `servings`, `items`, `containers`, or `bags` |
-| `created_at` | TEXT | ISO timestamp (UTC) when added |
-| `updated_at` | TEXT | ISO timestamp (UTC) of the last change |
-| `emptied_at` | TEXT or NULL | When it hit 0 |
+| `id` | bigint, primary key | Auto-numbered |
+| `name` | text | 1–100 characters |
+| `quantity` | integer | ≥ 0. **0 means empty** |
+| `unit` | text | `servings`, `items`, `containers`, or `bags` |
+| `created_at` | timestamptz | When it was added |
+| `updated_at` | timestamptz | When it last changed |
+| `emptied_at` | timestamptz or null | When it hit 0 |
 
-**To add a unit:** add it to `UNITS` in `server/db.js`. Because the
-database's allowed-unit check is fixed when the table is created, you'll also
-need to delete your local `data/freedge.db` (on a deployed app this would
-need a proper migration).
+**To add a unit:** add it to `UNITS` in `public/app.js` and to the three
+places in `supabase/schema.sql` that list units. Because the table already
+exists, also run this in the SQL Editor (with your new list):
 
-## API endpoints
+```sql
+alter table public.items drop constraint items_unit_check;
+alter table public.items add constraint items_unit_check
+  check (unit in ('servings', 'items', 'containers', 'bags', 'trays'));
+```
 
-All requests and responses use JSON. On errors, the API responds with an
-appropriate status code and `{ "error": "message" }`.
+## Database functions
 
-| Method | Path | Body | Success | Errors |
-|---|---|---|---|---|
-| `GET` | `/api/items` | none | `200` list of non-empty items, newest first | none |
-| `POST` | `/api/items` | `{ "name": "Lasagna", "quantity": 10, "unit": "servings" }` | `201` the new item | `400` invalid input |
-| `POST` | `/api/items/:id/take` | `{ "amount": 2 }` | `200` the updated item | `400` bad amount, more than is left, or already empty. `404` no such item |
-| `POST` | `/api/items/:id/empty` | none | `200` the updated item (quantity 0) | `404` no such item |
-| `GET` | `/api/units` | none | `200` `["servings","items","containers","bags"]` | none |
+The app calls these with `db.rpc('name', { ...args })`. Each returns the
+item, or fails with a plain-English error message.
+
+| Function | Arguments | Does | Errors |
+|---|---|---|---|
+| `add_item` | `p_name`, `p_quantity`, `p_unit` | Adds a new item | Bad name, quantity, or unit |
+| `take_item` | `p_id`, `p_amount` | Subtracts `p_amount` | Bad amount, more than is left, already empty, no such item |
+| `empty_item` | `p_id` | Sets quantity to 0 | No such item |
+
+Reading the list doesn't need a function: the app selects from `items` where
+`quantity > 0`, newest first.
 
 Example item:
 
@@ -201,40 +188,28 @@ Example item:
   "name": "Lasagna",
   "quantity": 8,
   "unit": "servings",
-  "created_at": "2026-10-05T20:06:29Z",
-  "updated_at": "2026-10-05T20:31:02Z",
+  "created_at": "2026-10-05T20:06:29.123+00:00",
+  "updated_at": "2026-10-05T20:31:02.456+00:00",
   "emptied_at": null
 }
 ```
 
-Try the API from a terminal while the server is running:
-
-```bash
-curl http://localhost:3000/api/items
-curl -X POST http://localhost:3000/api/items \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Lasagna","quantity":10,"unit":"servings"}'
-curl -X POST http://localhost:3000/api/items/1/take \
-  -H "Content-Type: application/json" -d '{"amount":2}'
-curl -X POST http://localhost:3000/api/items/1/empty
-```
-
 ## Known limitations
 
-- **No accounts:** anyone with the link can add, take, or empty anything,
+- **No accounts:** anyone with the app can add, take, or empty anything,
   and there's no record of who did it. This is fine for a trusted community
-  MVP, but there's no protection against pranks or mistakes.
+  MVP, but there's no protection against pranks or mistakes. Supabase has
+  built-in login if we want it later.
 - **No undo:** an item marked empty by mistake disappears from the list.
   It's still in the database, but the app has no way to bring it back yet.
 - **One fridge only.**
-- **Not real-time:** other people's changes appear on the next refresh
-  (up to 30 seconds, or tap ⟳), not instantly.
+- **Needs internet:** the app can't show or change anything offline.
+- **Free Supabase projects pause after about a week with no activity.**
+  Un-pause it from the Supabase dashboard.
 - **No expiration dates or food-safety info:** people still need to use
   their judgment.
 - **Whole numbers only:** you can't record "half a tray".
-- **Local only so far:** the app isn't deployed yet. Before deploying,
-  switch from SQLite to hosted Postgres: most free hosting services wipe
-  local files on restart, which would erase a SQLite database.
+- **Not an iPhone app yet:** Capacitor + Xcode + TestFlight is the next step.
 - **No automated tests yet.**
 
 ---
@@ -284,8 +259,8 @@ git status            # which files changed
 git diff              # the actual line-by-line changes
 
 # 4. Stage and commit (repeat as you go: small commits are better)
-git add server/routes/items.js     # stage specific files
-git commit -m "Add undo endpoint for emptied items"
+git add public/app.js     # stage specific files
+git commit -m "Add undo for emptied items"
 
 # 5. Push your branch to GitHub (first push of a new branch)
 git push -u origin feature/short-description
@@ -310,7 +285,7 @@ code.
 - **Optional body:** after a blank line, explain *why* or anything
   non-obvious.
 - **One logical change per commit:** don't mix "fix button color" with
-  "add new endpoint".
+  "add new feature".
 
 | ✅ Good | ❌ Not helpful |
 |---|---|
@@ -329,7 +304,7 @@ write the summary line, a blank line, then the details.
    tab → **New pull request**.)
 2. Make sure it says **base: `main`** ← **compare: `your-branch`**.
 3. Write a title and description: **what** you changed, **why**, and **how
-   to test it** (e.g. "Run `npm run dev`, add an item, tap Take 1, check the
+   to test it** (e.g. "Run `npm start`, add an item, tap Take 1, check the
    quantity drops").
 4. Click **Create pull request**. Request a reviewer on the right.
 
@@ -347,8 +322,7 @@ gh pr create --base main --title "Add undo for emptied items" --body "What / why
    ```bash
    git fetch
    git checkout their-branch-name
-   npm install
-   npm run dev
+   npm start
    ```
 4. **Review changes** → *Approve* or *Request changes*.
 5. Once approved, the author (or reviewer) clicks **Merge pull request**,
