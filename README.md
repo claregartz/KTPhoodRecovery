@@ -8,7 +8,9 @@ chat doesn't know what's available. This app answers "what's in the freedge?"
 at a glance and lets anyone keep that answer accurate.
 
 **Contributors:**
-- Charvi
+- Charvi Kanna
+- Clare Gartz
+- Anya Dennison
 
 ---
 
