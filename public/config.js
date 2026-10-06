@@ -5,6 +5,6 @@
 // fine to commit. NEVER put the service_role key here: it bypasses every
 // rule in supabase/schema.sql.
 window.FREEDGE_CONFIG = {
-  supabaseUrl: 'PASTE_PROJECT_URL_HERE',
-  supabaseAnonKey: 'PASTE_ANON_KEY_HERE',
+  supabaseUrl: 'https://lfaethyrqemcaamvdocb.supabase.co',
+  supabaseAnonKey: 'sb_publishable_SWx76GbAguFbSAoQUmPQKQ_RetsIStb',
 };
