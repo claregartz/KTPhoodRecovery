@@ -27,7 +27,10 @@ at a glance and lets anyone keep that answer accurate.
 
 ## What the app does
 
-- **See what's in the fridge:** a list of items and how much is left
+- **Open the fridge:** the app starts with a closed fridge (a sticky note
+  says how many things are inside). Tap **Open the fridge** and the door
+  swings open to show the items on shelves. **Close ✕** shuts it again.
+- **See what's in the fridge:** each item and how much is left
   (e.g. "Lasagna: 10 servings · updated 5 min ago").
 - **Add an item:** name, whole-number quantity, and a unit
   (`servings`, `items`, `containers`, or `bags`).

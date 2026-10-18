@@ -47,6 +47,12 @@ const els = {
   addUnit: document.getElementById('add-unit'),
   addError: document.getElementById('add-error'),
   cancelAddBtn: document.getElementById('cancel-add-btn'),
+  fridge: document.getElementById('fridge'),
+  fridgeInterior: document.getElementById('fridge-interior'),
+  fridgeDoor: document.getElementById('fridge-door'),
+  doorNote: document.getElementById('door-note'),
+  openFridgeBtn: document.getElementById('open-fridge-btn'),
+  closeFridgeBtn: document.getElementById('close-fridge-btn'),
 };
 
 // ---------------------------------------------------------------------------
@@ -125,6 +131,45 @@ function render() {
   els.lastUpdated.textContent = state.lastLoaded
     ? `Updated ${timeAgo(state.lastLoaded)}`
     : 'Loading…';
+  els.doorNote.textContent = doorNoteText();
+}
+
+// The sticky note on the fridge door, e.g. "3 things inside!"
+function doorNoteText() {
+  if (!state.lastLoaded) return 'Loading…';
+  const count = state.items.length;
+  if (count === 0) return 'Empty right now';
+  return count === 1 ? '1 thing inside!' : `${count} things inside!`;
+}
+
+// ---------------------------------------------------------------------------
+// Opening and closing the fridge
+// ---------------------------------------------------------------------------
+// These just flip data-state on the fridge between "closed" and "open".
+// The door animation itself is a CSS transition in styles.css.
+
+function isFridgeOpen() {
+  return els.fridge.dataset.state === 'open';
+}
+
+function openFridge() {
+  if (isFridgeOpen()) return;
+  els.fridge.dataset.state = 'open';
+  els.fridgeInterior.inert = false; // items can be tapped now
+  els.openFridgeBtn.hidden = true;
+  els.openFridgeBtn.setAttribute('aria-expanded', 'true');
+}
+
+function closeFridge() {
+  if (!isFridgeOpen()) return;
+  state.openPanel = null;
+  render();
+  els.fridge.dataset.state = 'closed';
+  els.fridgeInterior.inert = true;
+  els.openFridgeBtn.hidden = false;
+  els.openFridgeBtn.setAttribute('aria-expanded', 'false');
+  // The fridge shrinks back to door height, so bring it into view.
+  els.fridge.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 // Small helper for building elements:
@@ -293,6 +338,7 @@ els.addForm.addEventListener('submit', async (event) => {
     });
     els.addDialog.close();
     await loadItems();
+    openFridge(); // show them their item on the shelf
   } catch (err) {
     showAddError(err.message);
   } finally {
@@ -310,6 +356,9 @@ function showAddError(message) {
 // ---------------------------------------------------------------------------
 
 els.refreshBtn.addEventListener('click', loadItems);
+els.openFridgeBtn.addEventListener('click', openFridge);
+els.fridgeDoor.addEventListener('click', openFridge);
+els.closeFridgeBtn.addEventListener('click', closeFridge);
 
 // Reload, unless the person is in the middle of typing: redrawing would
 // wipe their input, so remember to reload once they're done instead.

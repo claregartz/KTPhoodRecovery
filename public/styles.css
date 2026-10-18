@@ -33,6 +33,9 @@
 
 * { box-sizing: border-box; }
 
+/* Make sure the `hidden` attribute always wins, even over display rules */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: var(--font-ui);
@@ -134,8 +137,175 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .icon-btn.spinning { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---- Item cards ---- */
-.item-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+/* ---- The fridge ----
+   Two layers stacked in the same spot: the interior (items on shelves) and
+   the door on top of it. Opening swings the door around its left edge
+   (the hinge) in 3D, revealing the interior. */
+.fridge {
+  --fridge-height: 440px;
+  position: relative;
+  min-height: var(--fridge-height);
+  border: 3px solid #c9d0cc;
+  border-radius: 22px;
+  background: #ffffff;
+  perspective: 1600px; /* how "deep" the 3D door swing looks */
+  box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.25);
+}
+/* Two little feet under the fridge */
+.fridge::before,
+.fridge::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  width: 28px;
+  height: 8px;
+  border-radius: 0 0 6px 6px;
+  background: #9aa39e;
+}
+.fridge::before { left: 24px; }
+.fridge::after { right: 24px; }
+
+/* Inside: cool white with a soft "fridge light" glow at the top */
+.fridge-interior {
+  height: var(--fridge-height);
+  overflow: hidden;
+  padding: 52px 14px 18px;
+  border-radius: 19px;
+  background:
+    radial-gradient(120% 40% at 50% 0%, #fffbe6 0%, transparent 70%),
+    linear-gradient(#f3f8fb, #e9f1f6);
+  box-shadow: inset 0 0 0 1px #dbe5eb, inset 0 8px 18px -10px rgb(0 0 0 / 0.15);
+}
+/* Once open, the interior grows to fit every item */
+.fridge[data-state="open"] .fridge-interior {
+  height: auto;
+  min-height: var(--fridge-height);
+}
+
+.close-fridge-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+/* The door */
+.fridge-door {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: calc(100% + 6px);
+  height: calc(var(--fridge-height) + 6px);
+  padding: 0;
+  border: 3px solid #c9d0cc;
+  border-radius: 22px;
+  background: linear-gradient(100deg, #ffffff 0%, #f6f8f7 60%, #eceff0 100%);
+  box-shadow: inset -6px 0 12px -8px rgb(0 0 0 / 0.15);
+  cursor: pointer;
+  transform-origin: left center; /* the hinge */
+  /* Closing: swing back in, and become visible right away */
+  transition: transform 0.7s cubic-bezier(0.3, 0.8, 0.3, 1), opacity 0.15s ease;
+}
+.fridge-door:focus-visible { outline: 3px solid var(--green); outline-offset: 4px; }
+
+/* Opening: swing out past 90°, then fade away so it's out of the way */
+.fridge[data-state="open"] .fridge-door {
+  transform: rotateY(-110deg);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.8s cubic-bezier(0.5, 0, 0.3, 1),
+    opacity 0.25s ease 0.55s,
+    visibility 0s linear 0.8s;
+}
+
+/* Line where the freezer door would be */
+.door-seam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 30%;
+  border-top: 3px solid #d5dbd8;
+}
+/* Long vertical handles on the right side (opposite the hinge) */
+.door-handle {
+  position: absolute;
+  right: 18px;
+  width: 10px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #b9c1bd, #e4e8e6 50%, #a9b2ad);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.2);
+}
+.door-handle-top { top: 9%; height: 15%; }
+.door-handle-bottom { top: 36%; height: 26%; }
+
+/* The bear, stuck on the door like a magnet */
+.door-magnet {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  width: 150px;
+  height: auto;
+  transform: translateX(-60%) rotate(-6deg);
+  filter: drop-shadow(0 3px 3px rgb(0 0 0 / 0.2));
+}
+/* A sticky note saying what's inside */
+.door-note {
+  position: absolute;
+  left: 22px;
+  top: 7%;
+  max-width: 55%;
+  padding: 10px 12px;
+  background: #fff6b3;
+  color: #40404c;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  line-height: 1.3;
+  text-align: left;
+  transform: rotate(-3deg);
+  box-shadow: 0 4px 8px -2px rgb(0 0 0 / 0.2);
+}
+
+/* The Open button sits on the lower part of the door */
+.open-fridge-btn {
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  top: calc(var(--fridge-height) - 76px);
+  min-height: 52px;
+  font-size: 1.1rem;
+  box-shadow: 0 6px 14px -6px rgb(0 0 0 / 0.35);
+}
+
+/* For people who turn on "Reduce motion" on their phone: no swinging */
+@media (prefers-reduced-motion: reduce) {
+  .fridge-door,
+  .fridge[data-state="open"] .fridge-door { transition: none; }
+}
+
+/* ---- Item cards (sitting on glass shelves inside the fridge) ---- */
+.item-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 30px; }
+.item-list > li { position: relative; }
+.item-list > li::after {
+  content: "";
+  position: absolute;
+  left: -14px;
+  right: -14px;
+  bottom: -18px;
+  height: 7px;
+  border-radius: 2px;
+  background: linear-gradient(#e6f0f5, #c9d9e2);
+  box-shadow: 0 4px 6px -2px rgb(0 0 0 / 0.12);
+}
 
 .item {
   background: var(--card);

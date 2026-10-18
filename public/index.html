@@ -38,16 +38,40 @@
     <!-- "—— In the fridge now ——" style heading, like the FRN website's -->
     <h1 class="section-heading" id="list-heading">In the fridge now</h1>
 
-    <!-- app.js fills this list with one <li> per item -->
-    <ul class="item-list" id="item-list" aria-live="polite"></ul>
+    <!-- The fridge. data-state is "closed" or "open"; styles.css animates
+         the door between the two. -->
+    <section class="fridge" id="fridge" data-state="closed">
+      <!-- Inside the fridge: the items, on shelves. `inert` means it can't
+           be tapped or reached with the keyboard while the door is shut. -->
+      <div class="fridge-interior" id="fridge-interior" inert>
+        <button type="button" class="close-fridge-btn" id="close-fridge-btn">Close ✕</button>
 
-    <div class="empty-state" id="empty-state" hidden>
-      <div class="bear-badge">
-        <img src="images/frn-bear.png" alt="" width="560" height="560">
+        <!-- app.js fills this list with one <li> per item -->
+        <ul class="item-list" id="item-list" aria-live="polite"></ul>
+
+        <div class="empty-state" id="empty-state" hidden>
+          <div class="bear-badge">
+            <img src="images/frn-bear.png" alt="" width="560" height="560">
+          </div>
+          <p class="empty-title">Nothing in the freedge right now</p>
+          <p>Dropping food off? Tap <strong>Add item</strong> so everyone knows.</p>
+        </div>
       </div>
-      <p class="empty-title">Nothing in the freedge right now</p>
-      <p>Dropping food off? Tap <strong>Add item</strong> so everyone knows.</p>
-    </div>
+
+      <!-- The door. The whole door is a button, so tapping it opens it. -->
+      <button type="button" class="fridge-door" id="fridge-door"
+              aria-label="Open the fridge" aria-controls="fridge-interior">
+        <span class="door-seam" aria-hidden="true"></span>
+        <span class="door-handle door-handle-top" aria-hidden="true"></span>
+        <span class="door-handle door-handle-bottom" aria-hidden="true"></span>
+        <img class="door-magnet" src="images/frn-bear.png" alt="" width="560" height="560">
+        <span class="door-note" id="door-note">Loading…</span>
+      </button>
+
+      <!-- Sits on the lower part of the door -->
+      <button type="button" class="btn btn-primary open-fridge-btn" id="open-fridge-btn"
+              aria-controls="fridge-interior" aria-expanded="false">Open the fridge</button>
+    </section>
 
     <footer class="site-footer">
       <p>A project of the
