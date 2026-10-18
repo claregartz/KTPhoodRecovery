@@ -1,111 +1,336 @@
 /*
   Mobile-first styles: the base rules are for phones. The @media rule
   near the bottom adjusts the layout for wider screens.
+
+  The look follows cornellfoodrecoverynetwork.com: white background,
+  FRN green, gray text, Arvo headings, and "—— Heading ——" section titles.
+  The darker red comes from the Cornell FRN bear logo.
 */
 
-/* Colors live in variables so the dark theme only has to swap them. */
+/* Colors live in variables so they can be changed in one place. */
 :root {
-  --bg: #f6f5f1;
+  --bg: #ffffff;
+  --surface: #f2f2f2;        /* light gray bands, like the website footer */
   --card: #ffffff;
-  --text: #1d1d1b;
-  --muted: #6b6b66;
-  --border: #e2e0d9;
-  --accent: #2f7d4f;
-  --accent-text: #ffffff;
-  --danger: #b3261e;
-  --danger-bg: #fbeaea;
-  --radius: 14px;
-  color-scheme: light;
-}
+  --text: #40404c;           /* headings: the website's dark slate */
+  --body: #555555;           /* body text: the website's gray */
+  --muted: #6e6e6e;
+  --border: #dddddd;
+  --green: #5e9516;          /* FRN green, from the website and logo */
+  --green-strong: #4b7a10;   /* darker green so white button text is readable */
+  --on-green: #ffffff;
+  --green-tint: #eef5e6;
+  --red: #8b1a2b;            /* from the Cornell FRN bear logo */
+  --red-tint: #f8e9eb;
+  --radius: 12px;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #161715;
-    --card: #222420;
-    --text: #ecebe6;
-    --muted: #a3a29b;
-    --border: #363833;
-    --accent: #5cb27f;
-    --accent-text: #0e1a12;
-    --danger: #f2a49e;
-    --danger-bg: #3a1f1d;
-    color-scheme: dark;
-  }
+  --font-heading: "Arvo", Georgia, serif;
+  --font-ui: "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Always light, like the website, even if the phone is in dark mode.
+     This also keeps form controls and scrollbars light. */
+  color-scheme: only light;
 }
 
 * { box-sizing: border-box; }
 
+/* Make sure the `hidden` attribute always wins, even over display rules */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-ui);
   font-size: 16px;
-  line-height: 1.4;
+  line-height: 1.45;
   background: var(--bg);
-  color: var(--text);
+  color: var(--body);
   /* Leave room so the last card isn't hidden behind the bottom bar */
   padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
 }
 
-/* ---- Top bar ---- */
+a { color: var(--green-strong); }
+
+/* ---- Header: centered logo, like the website ---- */
 .topbar {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px;
+  position: relative;
+  text-align: center;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 12px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
-h1 { margin: 0; font-size: 1.5rem; }
-.subtitle { margin: 2px 0 0; color: var(--muted); font-size: 0.875rem; }
+.logo-link { display: inline-block; }
+.logo {
+  display: block;
+  width: auto;
+  height: 64px;
+}
 
-main { padding: 16px; max-width: 640px; margin: 0 auto; }
+.app-title {
+  margin: 8px 0 0;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  color: var(--text);
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 0.875rem; }
+
+main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
+
+/* "—— In the fridge now ——": text with a line on each side */
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0 16px;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 1.375rem;
+  color: var(--text);
+  text-align: center;
+}
+.section-heading::before,
+.section-heading::after {
+  content: "";
+  flex: 1;
+  border-top: 2px solid var(--text);
+  opacity: 0.8;
+}
 
 /* ---- Buttons ---- */
 .btn {
   min-height: 44px; /* Apple's recommended minimum tap target */
   padding: 0 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px; /* pill shape, matching Varela Round's soft look */
   background: var(--card);
   color: var(--text);
-  font: inherit;
-  font-weight: 600;
+  font-family: var(--font-ui);
+  font-size: 1rem;
   cursor: pointer;
 }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.5; cursor: default; }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-.btn-danger { color: var(--danger); }
-.btn-danger-solid { background: var(--danger); border-color: var(--danger); color: var(--card); }
+.btn:focus-visible, .icon-btn:focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
+}
+.btn-primary { background: var(--green-strong); border-color: var(--green-strong); color: var(--on-green); }
+.btn-danger { color: var(--red); border-color: var(--border); }
+.btn-danger-solid { background: var(--red); border-color: var(--red); color: var(--card); }
 .btn-block { width: 100%; }
 
 .icon-btn {
-  width: 44px; height: 44px;
-  border: 1px solid var(--border);
+  width: 36px; height: 36px;
+  border: 1.5px solid var(--border);
   border-radius: 50%;
   background: var(--card);
-  color: var(--text);
-  font-size: 1.25rem;
+  color: var(--green-strong);
+  font-size: 1.1rem;
+  line-height: 1;
   cursor: pointer;
 }
 .icon-btn.spinning { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---- Item cards ---- */
-.item-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+/* ---- The fridge ----
+   Two layers stacked in the same spot: the interior (items on shelves) and
+   the door on top of it. Opening swings the door around its left edge
+   (the hinge) in 3D, revealing the interior. */
+.fridge {
+  --fridge-height: 440px;
+  position: relative;
+  min-height: var(--fridge-height);
+  border: 3px solid #c9d0cc;
+  border-radius: 22px;
+  background: #ffffff;
+  perspective: 1600px; /* how "deep" the 3D door swing looks */
+  box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.25);
+}
+/* Two little feet under the fridge */
+.fridge::before,
+.fridge::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  width: 28px;
+  height: 8px;
+  border-radius: 0 0 6px 6px;
+  background: #9aa39e;
+}
+.fridge::before { left: 24px; }
+.fridge::after { right: 24px; }
+
+/* Inside: cool white with a soft "fridge light" glow at the top */
+.fridge-interior {
+  height: var(--fridge-height);
+  overflow: hidden;
+  padding: 52px 14px 18px;
+  border-radius: 19px;
+  background:
+    radial-gradient(120% 40% at 50% 0%, #fffbe6 0%, transparent 70%),
+    linear-gradient(#f3f8fb, #e9f1f6);
+  box-shadow: inset 0 0 0 1px #dbe5eb, inset 0 8px 18px -10px rgb(0 0 0 / 0.15);
+}
+/* Once open, the interior grows to fit every item */
+.fridge[data-state="open"] .fridge-interior {
+  height: auto;
+  min-height: var(--fridge-height);
+}
+
+.close-fridge-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+/* The door */
+.fridge-door {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: calc(100% + 6px);
+  height: calc(var(--fridge-height) + 6px);
+  padding: 0;
+  border: 3px solid #c9d0cc;
+  border-radius: 22px;
+  background: linear-gradient(100deg, #ffffff 0%, #f6f8f7 60%, #eceff0 100%);
+  box-shadow: inset -6px 0 12px -8px rgb(0 0 0 / 0.15);
+  cursor: pointer;
+  transform-origin: left center; /* the hinge */
+  /* Closing: swing back in, and become visible right away */
+  transition: transform 0.7s cubic-bezier(0.3, 0.8, 0.3, 1), opacity 0.15s ease;
+}
+.fridge-door:focus-visible { outline: 3px solid var(--green); outline-offset: 4px; }
+
+/* Opening: swing out past 90°, then fade away so it's out of the way */
+.fridge[data-state="open"] .fridge-door {
+  transform: rotateY(-110deg);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.8s cubic-bezier(0.5, 0, 0.3, 1),
+    opacity 0.25s ease 0.55s,
+    visibility 0s linear 0.8s;
+}
+
+/* Line where the freezer door would be */
+.door-seam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 30%;
+  border-top: 3px solid #d5dbd8;
+}
+/* Long vertical handles on the right side (opposite the hinge) */
+.door-handle {
+  position: absolute;
+  right: 18px;
+  width: 10px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #b9c1bd, #e4e8e6 50%, #a9b2ad);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.2);
+}
+.door-handle-top { top: 9%; height: 15%; }
+.door-handle-bottom { top: 36%; height: 26%; }
+
+/* The bear, stuck on the door like a magnet */
+.door-magnet {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  width: 150px;
+  height: auto;
+  transform: translateX(-60%) rotate(-6deg);
+  filter: drop-shadow(0 3px 3px rgb(0 0 0 / 0.2));
+}
+/* A sticky note saying what's inside */
+.door-note {
+  position: absolute;
+  left: 22px;
+  top: 7%;
+  max-width: 55%;
+  padding: 10px 12px;
+  background: #fff6b3;
+  color: #40404c;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  line-height: 1.3;
+  text-align: left;
+  transform: rotate(-3deg);
+  box-shadow: 0 4px 8px -2px rgb(0 0 0 / 0.2);
+}
+
+/* The Open button sits on the lower part of the door */
+.open-fridge-btn {
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  top: calc(var(--fridge-height) - 76px);
+  min-height: 52px;
+  font-size: 1.1rem;
+  box-shadow: 0 6px 14px -6px rgb(0 0 0 / 0.35);
+}
+
+/* For people who turn on "Reduce motion" on their phone: no swinging */
+@media (prefers-reduced-motion: reduce) {
+  .fridge-door,
+  .fridge[data-state="open"] .fridge-door { transition: none; }
+}
+
+/* ---- Item cards (sitting on glass shelves inside the fridge) ---- */
+.item-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 30px; }
+.item-list > li { position: relative; }
+.item-list > li::after {
+  content: "";
+  position: absolute;
+  left: -14px;
+  right: -14px;
+  bottom: -18px;
+  height: 7px;
+  border-radius: 2px;
+  background: linear-gradient(#e6f0f5, #c9d9e2);
+  box-shadow: 0 4px 6px -2px rgb(0 0 0 / 0.12);
+}
 
 .item {
   background: var(--card);
   border: 1px solid var(--border);
+  border-left: 5px solid var(--green); /* green accent strip */
   border-radius: var(--radius);
   padding: 14px 16px;
 }
-.item-name { margin: 0; font-size: 1.125rem; font-weight: 700; overflow-wrap: anywhere; }
-.item-meta { margin: 2px 0 12px; color: var(--muted); }
-.item-qty { color: var(--text); font-weight: 600; }
+.item-name {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.item-meta { margin: 4px 0 12px; color: var(--muted); font-size: 0.9rem; }
+.item-qty {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--green-tint);
+  color: var(--green-strong);
+  font-size: 0.95rem;
+}
 
 .item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .item-actions .btn { flex: 1 1 0; }
@@ -116,23 +341,55 @@ main { padding: 16px; max-width: 640px; margin: 0 auto; }
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
 }
-.item-panel p { margin: 0; flex: 1 1 100%; }
+.item-panel p { margin: 0; flex: 1 1 100%; color: var(--text); }
 .item-panel input { width: 5.5rem; }
 .item-panel .btn { flex: 1 1 0; }
 
 /* ---- Messages ---- */
 .banner, .form-error {
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-radius: 10px;
-  background: var(--danger-bg);
-  color: var(--danger);
+  background: var(--red-tint);
+  color: var(--red);
 }
-.banner { margin: 0 0 12px; }
-.empty-state { text-align: center; color: var(--muted); margin-top: 48px; }
+.banner { margin: 16px 0 0; }
+
+/* Empty fridge: the Cornell FRN bear */
+.empty-state { text-align: center; padding: 8px 0 16px; }
+.bear-badge {
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: var(--green-tint);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.bear-badge img { width: 92%; height: auto; display: block; }
+.empty-title {
+  margin: 0 0 4px;
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  color: var(--text);
+}
+.empty-state p { margin: 0 0 4px; }
+
+/* ---- Footer: light gray band, like the website ---- */
+.site-footer {
+  margin: 32px -16px 0;
+  padding: 20px 16px;
+  background: var(--surface);
+  text-align: center;
+  font-family: var(--font-heading);
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.site-footer p { margin: 0; }
 
 /* ---- Bottom bar ---- */
 .bottombar {
@@ -142,33 +399,39 @@ main { padding: 16px; max-width: 640px; margin: 0 auto; }
   background: var(--bg);
   border-top: 1px solid var(--border);
 }
-.bottombar .btn { max-width: 608px; margin: 0 auto; display: block; min-height: 52px; font-size: 1.05rem; }
+.bottombar .btn { max-width: 608px; margin: 0 auto; display: block; min-height: 52px; font-size: 1.1rem; }
 
 /* ---- Add dialog ---- */
 dialog {
   width: min(100% - 32px, 440px);
   border: none;
+  border-top: 6px solid var(--green);
   border-radius: var(--radius);
   padding: 20px;
   background: var(--card);
-  color: var(--text);
+  color: var(--body);
 }
 dialog::backdrop { background: rgb(0 0 0 / 0.45); }
-dialog h2 { margin: 0 0 12px; }
+dialog h2 {
+  margin: 0 0 12px;
+  font-family: var(--font-heading);
+  color: var(--text);
+}
 
-label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 0.9rem; }
+label { display: block; margin: 12px 0 4px; font-size: 0.9rem; color: var(--text); }
 input, select {
   width: 100%;
   min-height: 44px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border: 1.5px solid var(--border);
   border-radius: 10px;
   background: var(--bg);
   color: var(--text);
   /* 16px or larger stops iPhones from zooming in when you tap a field */
-  font: inherit;
+  font-family: var(--font-ui);
   font-size: 16px;
 }
+input:focus, select:focus { outline: none; border-color: var(--green); }
 .row { display: flex; gap: 12px; }
 .field { flex: 1 1 0; min-width: 0; }
 .actions { margin-top: 20px; }
@@ -177,6 +440,6 @@ input, select {
 
 /* ---- Wider screens (tablets / laptops) ---- */
 @media (min-width: 700px) {
-  main { padding-top: 24px; }
+  .logo { height: 80px; }
   .item-list { gap: 16px; }
 }

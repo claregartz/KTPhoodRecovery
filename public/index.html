@@ -3,36 +3,87 @@
 <head>
   <meta charset="utf-8">
   <!-- Makes the page fit phone screens instead of showing a zoomed-out desktop page -->
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#2f7d4f">
-  <title>Freedge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Colors the phone's status bar to match the page -->
+  <meta name="theme-color" content="#ffffff">
+  <!-- Always light, even when the phone is in dark mode -->
+  <meta name="color-scheme" content="only light">
+  <title>The Freedge · Cornell Food Recovery Network</title>
+  <link rel="icon" type="image/png" href="images/favicon.png">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.jpg">
+
+  <!-- Same fonts as cornellfoodrecoverynetwork.com: Arvo for headings,
+       Varela Round for buttons and labels -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arvo:wght@400;700&family=Varela+Round&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <h1>Freedge</h1>
+    <a class="logo-link" href="https://www.cornellfoodrecoverynetwork.com/" target="_blank" rel="noopener">
+      <img class="logo" src="images/frn-logo.jpg" alt="Food Recovery Network" width="450" height="327">
+    </a>
+    <p class="app-title">The Freedge</p>
+    <div class="status-row">
       <p class="subtitle" id="last-updated">Loading…</p>
+      <button type="button" class="icon-btn" id="refresh-btn" aria-label="Refresh list">⟳</button>
     </div>
-    <button type="button" class="icon-btn" id="refresh-btn" aria-label="Refresh list">⟳</button>
   </header>
 
   <main>
     <!-- Error messages appear here -->
     <p class="banner" id="error-banner" role="alert" hidden></p>
 
-    <!-- app.js fills this list with one <li> per item -->
-    <ul class="item-list" id="item-list" aria-live="polite"></ul>
+    <!-- "—— In the fridge now ——" style heading, like the FRN website's -->
+    <h1 class="section-heading" id="list-heading">In the fridge now</h1>
 
-    <p class="empty-state" id="empty-state" hidden>
-      The fridge is empty right now.<br>Added something? Tap <strong>Add item</strong>.
-    </p>
+    <!-- The fridge. data-state is "closed" or "open"; styles.css animates
+         the door between the two. -->
+    <section class="fridge" id="fridge" data-state="closed">
+      <!-- Inside the fridge: the items, on shelves. `inert` means it can't
+           be tapped or reached with the keyboard while the door is shut. -->
+      <div class="fridge-interior" id="fridge-interior" inert>
+        <button type="button" class="close-fridge-btn" id="close-fridge-btn">Close ✕</button>
+
+        <!-- app.js fills this list with one <li> per item -->
+        <ul class="item-list" id="item-list" aria-live="polite"></ul>
+
+        <div class="empty-state" id="empty-state" hidden>
+          <div class="bear-badge">
+            <img src="images/frn-bear.png" alt="" width="560" height="560">
+          </div>
+          <p class="empty-title">Nothing in the freedge right now</p>
+          <p>Dropping food off? Tap <strong>Add item</strong> so everyone knows.</p>
+        </div>
+      </div>
+
+      <!-- The door. The whole door is a button, so tapping it opens it. -->
+      <button type="button" class="fridge-door" id="fridge-door"
+              aria-label="Open the fridge" aria-controls="fridge-interior">
+        <span class="door-seam" aria-hidden="true"></span>
+        <span class="door-handle door-handle-top" aria-hidden="true"></span>
+        <span class="door-handle door-handle-bottom" aria-hidden="true"></span>
+        <img class="door-magnet" src="images/frn-bear.png" alt="" width="560" height="560">
+        <span class="door-note" id="door-note">Loading…</span>
+      </button>
+
+      <!-- Sits on the lower part of the door -->
+      <button type="button" class="btn btn-primary open-fridge-btn" id="open-fridge-btn"
+              aria-controls="fridge-interior" aria-expanded="false">Open the fridge</button>
+    </section>
+
+    <footer class="site-footer">
+      <p>A project of the
+        <a href="https://www.cornellfoodrecoverynetwork.com/" target="_blank" rel="noopener">Cornell Food Recovery Network</a>.
+      </p>
+    </footer>
   </main>
 
   <!-- Sticks to the bottom of the screen, where thumbs can reach it -->
-  <footer class="bottombar">
+  <div class="bottombar">
     <button type="button" class="btn btn-primary btn-block" id="open-add-btn">+ Add item</button>
-  </footer>
+  </div>
 
   <!-- The "Add item" form. <dialog> is a built-in HTML popup. -->
   <dialog id="add-dialog" aria-labelledby="add-title">
@@ -64,6 +115,9 @@
     </form>
   </dialog>
 
+  <!-- Supabase's JavaScript library, then our keys, then our code -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
