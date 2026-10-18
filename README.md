@@ -139,10 +139,25 @@ KTPhoodRecovery/
 │   └── schema.sql       ← table, permissions, and functions. Run in Supabase's SQL Editor
 └── public/              ← the app itself
     ├── index.html       ← page structure
-    ├── styles.css       ← mobile-first styling (supports light/dark mode)
+    ├── styles.css       ← mobile-first styling in FRN colors (supports light/dark mode)
     ├── config.js        ← Supabase project URL + anon key
-    └── app.js           ← reads/writes the database, draws the list, handles buttons
+    ├── app.js           ← reads/writes the database, draws the list, handles buttons
+    └── images/          ← FRN logo, Cornell FRN bear, favicon, home-screen icon
 ```
+
+### Design
+
+The look matches [cornellfoodrecoverynetwork.com](https://www.cornellfoodrecoverynetwork.com/):
+the FRN wordmark centered in the header, white background, FRN green
+(`#5e9516`), gray text, **Arvo** headings and **Varela Round** for buttons
+and labels (loaded from Google Fonts), and "—— Heading ——" section titles.
+The Cornell FRN bear shows when the fridge is empty, and its dark red
+(`#8b1a2b`) is used for "Empty" buttons and error messages.
+
+All colors are variables at the top of `public/styles.css`. Change them there
+and the whole app follows, including the dark-mode versions just below.
+Buttons use a slightly darker green (`#4b7a10`) than the logo so white
+button text stays easy to read.
 
 ### Database table: `items`
 
