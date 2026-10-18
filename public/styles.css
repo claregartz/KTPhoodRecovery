@@ -7,7 +7,7 @@
   The darker red comes from the Cornell FRN bear logo.
 */
 
-/* Colors live in variables so the dark theme only has to swap them. */
+/* Colors live in variables so they can be changed in one place. */
 :root {
   --bg: #ffffff;
   --surface: #f2f2f2;        /* light gray bands, like the website footer */
@@ -26,27 +26,9 @@
 
   --font-heading: "Arvo", Georgia, serif;
   --font-ui: "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light;
-}
-
-/* Dark mode: same brand colors, adjusted so they stay readable on dark. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #181a16;
-    --surface: #20231d;
-    --card: #23261f;
-    --text: #f0f0ea;
-    --body: #d4d4cc;
-    --muted: #a6a69e;
-    --border: #373a32;
-    --green: #8cc63f;
-    --green-strong: #8cc63f;
-    --on-green: #13200a;
-    --green-tint: #26331a;
-    --red: #f2a7b1;
-    --red-tint: #3a2125;
-    color-scheme: dark;
-  }
+  /* Always light, like the website, even if the phone is in dark mode.
+     This also keeps form controls and scrollbars light. */
+  color-scheme: only light;
 }
 
 * { box-sizing: border-box; }
@@ -77,16 +59,6 @@ a { color: var(--green-strong); }
   display: block;
   width: auto;
   height: 64px;
-}
-/* The logo file has a white background, so in dark mode it sits on a
-   white rounded badge instead of a white rectangle. */
-@media (prefers-color-scheme: dark) {
-  .logo-link {
-    background: #ffffff;
-    border-radius: 10px;
-    padding: 6px 10px;
-  }
-  .logo { height: 56px; }
 }
 
 .app-title {
@@ -229,10 +201,6 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   overflow: hidden;
 }
 .bear-badge img { width: 92%; height: auto; display: block; }
-/* The bear's outlines and red lettering need a light background */
-@media (prefers-color-scheme: dark) {
-  .bear-badge { background: #f4f1e8; }
-}
 .empty-title {
   margin: 0 0 4px;
   font-family: var(--font-heading);
