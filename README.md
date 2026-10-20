@@ -36,6 +36,13 @@ at a glance and lets anyone keep that answer accurate.
   (e.g. "Lasagna: 10 servings · updated 5 min ago").
 - **Add an item:** name, whole-number quantity, and a unit
   (`servings`, `items`, `containers`, or `bags`).
+- **Allergens:** when adding, people must answer "Does it contain any of
+  these?" by ticking any of the 9 major allergens (peanuts, tree nuts, milk,
+  eggs, wheat, soy, fish, shellfish, sesame), or picking **None of these** or
+  **Not sure**. Each card shows the answer with icons. "Not sure" (and every
+  item added before this feature) shows a yellow "Allergens unknown" warning,
+  so a blank is never mistaken for "safe". A note in the fridge reminds people
+  this info comes from whoever added the food.
 - **Take some:** "Take 1", or "Take…" to choose an amount. The quantity goes
   down by that many.
 - **Mark empty:** for when the fridge doesn't match the app. Asks
@@ -176,6 +183,11 @@ button text stays easy to read.
 | `created_at` | timestamptz | When it was added |
 | `updated_at` | timestamptz | When it last changed |
 | `emptied_at` | timestamptz or null | When it hit 0 |
+| `allergens` | text[] or null | `null` = not sure, `{}` = none of these, `{milk,wheat}` = contains those. Keys: `peanuts`, `tree_nuts`, `milk`, `eggs`, `wheat`, `soy`, `fish`, `shellfish`, `sesame` |
+
+**To change the allergen list:** edit `ALLERGENS` in `public/app.js` and the
+two lists in `supabase/schema.sql` (the `items_allergens_check` constraint
+and `add_item`), then re-run the schema file.
 
 **To add a unit:** add it to `UNITS` in `public/app.js` and to the three
 places in `supabase/schema.sql` that list units. Because the table already
@@ -194,7 +206,7 @@ item, or fails with a plain-English error message.
 
 | Function | Arguments | Does | Errors |
 |---|---|---|---|
-| `add_item` | `p_name`, `p_quantity`, `p_unit` | Adds a new item | Bad name, quantity, or unit |
+| `add_item` | `p_name`, `p_quantity`, `p_unit`, `p_allergens` (optional, defaults to null = not sure) | Adds a new item | Bad name, quantity, unit, or allergen |
 | `take_item` | `p_id`, `p_amount` | Subtracts `p_amount` | Bad amount, more than is left, already empty, no such item |
 | `empty_item` | `p_id` | Sets quantity to 0 | No such item |
 
@@ -211,7 +223,8 @@ Example item:
   "unit": "servings",
   "created_at": "2026-10-05T20:06:29.123+00:00",
   "updated_at": "2026-10-05T20:31:02.456+00:00",
-  "emptied_at": null
+  "emptied_at": null,
+  "allergens": ["milk", "wheat"]
 }
 ```
 

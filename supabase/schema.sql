@@ -29,6 +29,21 @@ create table if not exists public.items (
   emptied_at  timestamptz
 );
 
+-- Allergens, as reported by whoever added the item. One column holds all
+-- three possible answers, so they can never disagree:
+--   null              -> "Not sure" (also every item added before this existed)
+--   '{}' (empty list) -> "None of these"
+--   '{milk,wheat}'    -> contains milk and wheat
+--
+-- The allowed keys are the 9 major US allergens. To change them, change the
+-- list here, in add_item below, AND `ALLERGENS` in public/app.js.
+alter table public.items add column if not exists allergens text[];
+
+alter table public.items drop constraint if exists items_allergens_check;
+alter table public.items add constraint items_allergens_check
+  check (allergens <@ array['peanuts', 'tree_nuts', 'milk', 'eggs', 'wheat',
+                            'soy', 'fish', 'shellfish', 'sesame']::text[]);
+
 -- ---------------------------------------------------------------------------
 -- Permissions
 -- ---------------------------------------------------------------------------
@@ -52,8 +67,19 @@ create policy "Anyone can view items"
 -- checks its input before writing. Errors are raised with a plain-English
 -- message, which the app shows to the user as-is.
 
--- add_item('Lasagna', 10, 'servings') -> the new item
-create or replace function public.add_item(p_name text, p_quantity integer, p_unit text)
+-- add_item('Lasagna', 10, 'servings', '{milk,wheat}') -> the new item
+--
+-- p_allergens follows the same rules as the column: null = not sure,
+-- '{}' = none of these. It's optional so older copies of the app that don't
+-- send it still work (their items count as "not sure").
+
+-- Before allergens, add_item took 3 arguments. Remove that version so there
+-- aren't two add_items.
+drop function if exists public.add_item(text, integer, text);
+
+create or replace function public.add_item(
+  p_name text, p_quantity integer, p_unit text, p_allergens text[] default null
+)
 returns public.items
 language plpgsql
 security definer
@@ -61,6 +87,9 @@ set search_path = ''
 as $$
 declare
   v_name text := btrim(coalesce(p_name, ''));
+  v_all_allergens text[] := array['peanuts', 'tree_nuts', 'milk', 'eggs', 'wheat',
+                                  'soy', 'fish', 'shellfish', 'sesame'];
+  v_allergens text[];
   v_item public.items;
 begin
   if char_length(v_name) not between 1 and 100 then
@@ -72,9 +101,23 @@ begin
   if p_unit is null or p_unit not in ('servings', 'items', 'containers', 'bags') then
     raise exception 'Unit must be one of: servings, items, containers, bags.';
   end if;
+  if array_position(p_allergens, null) is not null
+     or not (p_allergens <@ v_all_allergens) then
+    raise exception 'Allergens must be from: %.', array_to_string(v_all_allergens, ', ');
+  end if;
 
-  insert into public.items (name, quantity, unit)
-  values (v_name, p_quantity, p_unit)
+  -- Drop duplicates and put them in the standard order, so the same answer
+  -- is always stored the same way. (Stays null for "not sure".)
+  if p_allergens is not null then
+    v_allergens := array(
+      select a from unnest(v_all_allergens) with ordinality as t(a, n)
+      where a = any(p_allergens)
+      order by n
+    );
+  end if;
+
+  insert into public.items (name, quantity, unit, allergens)
+  values (v_name, p_quantity, p_unit, v_allergens)
   returning * into v_item;
   return v_item;
 end;
@@ -148,12 +191,12 @@ end;
 $$;
 
 -- Postgres lets everyone run new functions by default; limit it to the app.
-revoke execute on function public.add_item(text, integer, text) from public;
-revoke execute on function public.take_item(bigint, integer)    from public;
-revoke execute on function public.empty_item(bigint)            from public;
-grant  execute on function public.add_item(text, integer, text) to anon, authenticated;
-grant  execute on function public.take_item(bigint, integer)    to anon, authenticated;
-grant  execute on function public.empty_item(bigint)            to anon, authenticated;
+revoke execute on function public.add_item(text, integer, text, text[]) from public;
+revoke execute on function public.take_item(bigint, integer)            from public;
+revoke execute on function public.empty_item(bigint)                    from public;
+grant  execute on function public.add_item(text, integer, text, text[]) to anon, authenticated;
+grant  execute on function public.take_item(bigint, integer)            to anon, authenticated;
+grant  execute on function public.empty_item(bigint)                    to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Live updates

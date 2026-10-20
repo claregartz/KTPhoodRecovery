@@ -22,6 +22,8 @@
   --green-tint: #eef5e6;
   --red: #8b1a2b;            /* from the Cornell FRN bear logo */
   --red-tint: #f8e9eb;
+  --amber: #7a4f00;          /* "allergens unknown" warning */
+  --amber-tint: #fdf2d6;
   --radius: 12px;
 
   --font-heading: "Arvo", Georgia, serif;
@@ -332,6 +334,56 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   font-size: 0.95rem;
 }
 
+/* ---- Allergens on a card ---- */
+.allergens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 12px;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.allergens-label { color: var(--muted); }
+.allergen-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.allergens-unknown,
+.allergens-none {
+  display: block;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+.allergens-unknown { background: var(--amber-tint); color: var(--amber); }
+.allergens-none { background: var(--green-tint); color: var(--green-strong); }
+
+.allergen-icon { font-size: 1.05em; line-height: 1; }
+/* Sesame has no emoji, so draw a little seed */
+.seed-icon {
+  display: inline-block;
+  width: 0.6em;
+  height: 0.9em;
+  border: 1px solid #a8874a;
+  border-radius: 50% 50% 50% 50% / 65% 65% 35% 35%;
+  background: #efdcae;
+  transform: rotate(20deg);
+}
+
+/* Reminder at the top of the fridge that allergen info isn't guaranteed.
+   Leaves room on the right for the Close button. */
+.allergen-note {
+  margin: -40px 84px 16px 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
 .item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .item-actions .btn { flex: 1 1 0; }
 
@@ -437,6 +489,43 @@ input:focus, select:focus { outline: none; border-color: var(--green); }
 .actions { margin-top: 20px; }
 .actions .btn { flex: 1 1 0; }
 .form-error { margin: 12px 0 0; }
+
+/* Allergen choices in the Add form: tappable pills that turn green when
+   ticked. The real checkbox is kept (for keyboards and screen readers) but
+   hidden visually. */
+.allergen-picker { margin: 12px 0 0; padding: 0; border: none; }
+.allergen-picker legend { padding: 0; font-size: 0.9rem; color: var(--text); }
+.hint { margin: 2px 0 8px; font-size: 0.8rem; color: var(--muted); }
+.allergen-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.allergen-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.95rem;
+  cursor: pointer;
+  user-select: none;
+}
+.allergen-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  opacity: 0;
+}
+.allergen-option:has(input:checked) {
+  border-color: var(--green-strong);
+  background: var(--green-tint);
+  color: var(--green-strong);
+}
+.allergen-option:has(input:checked)::before { content: "✓"; }
+.allergen-option:has(input:focus-visible) { outline: 3px solid var(--green); outline-offset: 2px; }
 
 /* ---- Wider screens (tablets / laptops) ---- */
 @media (min-width: 700px) {
