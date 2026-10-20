@@ -14,7 +14,7 @@ const AUTO_REFRESH_MS = 30_000;
 // supabase/schema.sql, which is what actually enforces it.
 const UNITS = ['servings', 'items', 'containers', 'bags'];
 
-// The 9 major US allergens, in the order they're shown. `key` is what's
+// The allergens people can pick, in the order they're shown. `key` is what's
 // stored in the database and must match the list in supabase/schema.sql.
 // Sesame has no emoji, so it gets a little drawn seed instead (see styles.css).
 const ALLERGENS = [
@@ -22,10 +22,9 @@ const ALLERGENS = [
   { key: 'tree_nuts', label: 'Tree nuts', icon: '🌰' },
   { key: 'milk',      label: 'Milk',      icon: '🥛' },
   { key: 'eggs',      label: 'Eggs',      icon: '🥚' },
-  { key: 'wheat',     label: 'Wheat',     icon: '🌾' },
+  { key: 'gluten',    label: 'Gluten',    icon: '🌾' },
   { key: 'soy',       label: 'Soy',       icon: '🫘' },
   { key: 'fish',      label: 'Fish',      icon: '🐟' },
-  { key: 'shellfish', label: 'Shellfish', icon: '🦐' },
   { key: 'sesame',    label: 'Sesame',    icon: null },
 ];
 
@@ -243,7 +242,7 @@ function renderItem(item) {
   );
 }
 
-// One of: "Contains 🥛 Milk 🌾 Wheat", "No major allergens", or
+// One of: "Contains 🥛 Milk 🌾 Gluten", "None of the listed allergens", or
 // "Allergens unknown" (null, which includes items added before allergens
 // existed).
 function renderAllergens(item) {
@@ -253,7 +252,7 @@ function renderAllergens(item) {
   }
   if (item.allergens.length === 0) {
     return el('p', { className: 'allergens allergens-none' },
-      '✓ None of the 9 major allergens');
+      '✓ None of the listed allergens');
   }
   return el('p', { className: 'allergens' },
     el('span', { className: 'allergens-label' }, 'Contains'),

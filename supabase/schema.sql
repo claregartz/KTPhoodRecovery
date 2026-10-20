@@ -33,16 +33,23 @@ create table if not exists public.items (
 -- three possible answers, so they can never disagree:
 --   null              -> "Not sure" (also every item added before this existed)
 --   '{}' (empty list) -> "None of these"
---   '{milk,wheat}'    -> contains milk and wheat
+--   '{milk,gluten}'   -> contains milk and gluten
 --
--- The allowed keys are the 9 major US allergens. To change them, change the
--- list here, in add_item below, AND `ALLERGENS` in public/app.js.
+-- The allowed keys are listed below. To change them, change the list here,
+-- in add_item below, AND `ALLERGENS` in public/app.js.
 alter table public.items add column if not exists allergens text[];
 
 alter table public.items drop constraint if exists items_allergens_check;
+
+-- The first version of the list had 'wheat' (now 'gluten') and 'shellfish'
+-- (removed). Update any items saved with those so they fit the new list.
+update public.items
+set allergens = array_remove(array_replace(allergens, 'wheat', 'gluten'), 'shellfish')
+where allergens && array['wheat', 'shellfish'];
+
 alter table public.items add constraint items_allergens_check
-  check (allergens <@ array['peanuts', 'tree_nuts', 'milk', 'eggs', 'wheat',
-                            'soy', 'fish', 'shellfish', 'sesame']::text[]);
+  check (allergens <@ array['peanuts', 'tree_nuts', 'milk', 'eggs', 'gluten',
+                            'soy', 'fish', 'sesame']::text[]);
 
 -- ---------------------------------------------------------------------------
 -- Permissions
@@ -67,7 +74,7 @@ create policy "Anyone can view items"
 -- checks its input before writing. Errors are raised with a plain-English
 -- message, which the app shows to the user as-is.
 
--- add_item('Lasagna', 10, 'servings', '{milk,wheat}') -> the new item
+-- add_item('Lasagna', 10, 'servings', '{milk,gluten}') -> the new item
 --
 -- p_allergens follows the same rules as the column: null = not sure,
 -- '{}' = none of these. It's optional so older copies of the app that don't
@@ -87,8 +94,8 @@ set search_path = ''
 as $$
 declare
   v_name text := btrim(coalesce(p_name, ''));
-  v_all_allergens text[] := array['peanuts', 'tree_nuts', 'milk', 'eggs', 'wheat',
-                                  'soy', 'fish', 'shellfish', 'sesame'];
+  v_all_allergens text[] := array['peanuts', 'tree_nuts', 'milk', 'eggs', 'gluten',
+                                  'soy', 'fish', 'sesame'];
   v_allergens text[];
   v_item public.items;
 begin
