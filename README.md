@@ -37,8 +37,8 @@ at a glance and lets anyone keep that answer accurate.
 - **Add an item:** name, whole-number quantity, and a unit
   (`servings`, `items`, `containers`, or `bags`).
 - **Allergens:** when adding, people must answer "Does it contain any of
-  these?" by ticking any of the 9 major allergens (peanuts, tree nuts, milk,
-  eggs, wheat, soy, fish, shellfish, sesame), or picking **None of these** or
+  these?" by ticking any of 8 common allergens (peanuts, tree nuts, milk,
+  eggs, gluten, soy, fish, sesame), or picking **None of these** or
   **Not sure**. Each card shows the answer with icons. "Not sure" (and every
   item added before this feature) shows a yellow "Allergens unknown" warning,
   so a blank is never mistaken for "safe". A note in the fridge reminds people
@@ -183,7 +183,7 @@ button text stays easy to read.
 | `created_at` | timestamptz | When it was added |
 | `updated_at` | timestamptz | When it last changed |
 | `emptied_at` | timestamptz or null | When it hit 0 |
-| `allergens` | text[] or null | `null` = not sure, `{}` = none of these, `{milk,wheat}` = contains those. Keys: `peanuts`, `tree_nuts`, `milk`, `eggs`, `wheat`, `soy`, `fish`, `shellfish`, `sesame` |
+| `allergens` | text[] or null | `null` = not sure, `{}` = none of these, `{milk,gluten}` = contains those. Keys: `peanuts`, `tree_nuts`, `milk`, `eggs`, `gluten`, `soy`, `fish`, `sesame` |
 
 **To change the allergen list:** edit `ALLERGENS` in `public/app.js` and the
 two lists in `supabase/schema.sql` (the `items_allergens_check` constraint
@@ -224,7 +224,7 @@ Example item:
   "created_at": "2026-10-05T20:06:29.123+00:00",
   "updated_at": "2026-10-05T20:31:02.456+00:00",
   "emptied_at": null,
-  "allergens": ["milk", "wheat"]
+  "allergens": ["milk", "gluten"]
 }
 ```
 
