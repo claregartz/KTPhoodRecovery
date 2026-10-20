@@ -46,6 +46,9 @@
       <div class="fridge-interior" id="fridge-interior" inert>
         <button type="button" class="close-fridge-btn" id="close-fridge-btn">Close ✕</button>
 
+        <p class="allergen-note">Allergen info comes from whoever added the food and may be wrong.
+          With a serious allergy, only take what you're sure about.</p>
+
         <!-- app.js fills this list with one <li> per item -->
         <ul class="item-list" id="item-list" aria-live="polite"></ul>
 
@@ -105,6 +108,15 @@
           <select id="add-unit" name="unit" required></select>
         </div>
       </div>
+
+      <!-- Allergens. Answering is required: tick what it contains, or pick
+           "None of these" or "Not sure". app.js fills in the choices and
+           makes "None"/"Not sure" and the allergens cancel each other out. -->
+      <fieldset class="allergen-picker">
+        <legend>Does it contain any of these?</legend>
+        <p class="hint">Not sure? Pick <strong>Not sure</strong>. A wrong guess is worse than no answer.</p>
+        <div class="allergen-options" id="add-allergens"></div>
+      </fieldset>
 
       <p class="form-error" id="add-error" role="alert" hidden></p>
 

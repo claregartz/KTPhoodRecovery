@@ -14,6 +14,27 @@ const AUTO_REFRESH_MS = 30_000;
 // supabase/schema.sql, which is what actually enforces it.
 const UNITS = ['servings', 'items', 'containers', 'bags'];
 
+// The 9 major US allergens, in the order they're shown. `key` is what's
+// stored in the database and must match the list in supabase/schema.sql.
+// Sesame has no emoji, so it gets a little drawn seed instead (see styles.css).
+const ALLERGENS = [
+  { key: 'peanuts',   label: 'Peanuts',   icon: '🥜' },
+  { key: 'tree_nuts', label: 'Tree nuts', icon: '🌰' },
+  { key: 'milk',      label: 'Milk',      icon: '🥛' },
+  { key: 'eggs',      label: 'Eggs',      icon: '🥚' },
+  { key: 'wheat',     label: 'Wheat',     icon: '🌾' },
+  { key: 'soy',       label: 'Soy',       icon: '🫘' },
+  { key: 'fish',      label: 'Fish',      icon: '🐟' },
+  { key: 'shellfish', label: 'Shellfish', icon: '🦐' },
+  { key: 'sesame',    label: 'Sesame',    icon: null },
+];
+
+// The two extra answers in the Add form. Each one cancels out every other
+// choice. In the database "none" is stored as an empty list and "not sure"
+// as null.
+const ALLERGEN_NONE = 'none';
+const ALLERGEN_UNKNOWN = 'unknown';
+
 // `supabase` comes from the library loaded in index.html; FREEDGE_CONFIG
 // comes from config.js.
 const db = supabase.createClient(
@@ -45,6 +66,7 @@ const els = {
   addName: document.getElementById('add-name'),
   addQuantity: document.getElementById('add-quantity'),
   addUnit: document.getElementById('add-unit'),
+  addAllergens: document.getElementById('add-allergens'),
   addError: document.getElementById('add-error'),
   cancelAddBtn: document.getElementById('cancel-add-btn'),
   fridge: document.getElementById('fridge'),
@@ -195,6 +217,7 @@ function renderItem(item) {
       el('span', { className: 'item-qty' }, `${item.quantity} ${unitLabel(item)}`),
       ` · updated ${timeAgo(new Date(item.updated_at))}`
     ),
+    renderAllergens(item),
     el('div', { className: 'item-actions' },
       el('button', {
         type: 'button',
@@ -218,6 +241,40 @@ function renderItem(item) {
     panel === 'take' ? renderTakePanel(item) : null,
     panel === 'empty' ? renderEmptyPanel(item) : null
   );
+}
+
+// One of: "Contains 🥛 Milk 🌾 Wheat", "No major allergens", or
+// "Allergens unknown" (null, which includes items added before allergens
+// existed).
+function renderAllergens(item) {
+  if (item.allergens == null) {
+    return el('p', { className: 'allergens allergens-unknown' },
+      '⚠ Allergens unknown, ask or skip if you have allergies');
+  }
+  if (item.allergens.length === 0) {
+    return el('p', { className: 'allergens allergens-none' },
+      '✓ None of the 9 major allergens');
+  }
+  return el('p', { className: 'allergens' },
+    el('span', { className: 'allergens-label' }, 'Contains'),
+    ...item.allergens.map((key) => {
+      // Fall back to the raw key if the database knows an allergen this
+      // copy of the app doesn't yet.
+      const allergen = ALLERGENS.find((a) => a.key === key) ?? { label: key };
+      return el('span', { className: 'allergen-chip' },
+        allergenIcon(allergen), allergen.label);
+    })
+  );
+}
+
+function allergenIcon(allergen) {
+  if (allergen.icon) {
+    return el('span', { className: 'allergen-icon', ariaHidden: 'true' }, allergen.icon);
+  }
+  if (allergen.key === 'sesame') {
+    return el('span', { className: 'allergen-icon seed-icon', ariaHidden: 'true' });
+  }
+  return null;
 }
 
 function renderTakePanel(item) {
@@ -320,6 +377,7 @@ els.addForm.addEventListener('submit', async (event) => {
     name: els.addName.value.trim(),
     quantity: Number(els.addQuantity.value),
     unit: els.addUnit.value,
+    allergens: readAllergens(),
   };
 
   // Quick checks for instant feedback. The database checks again, because
@@ -328,6 +386,9 @@ els.addForm.addEventListener('submit', async (event) => {
   if (!Number.isInteger(item.quantity) || item.quantity < 1) {
     return showAddError('Quantity must be a whole number of at least 1.');
   }
+  if (item.allergens === undefined) {
+    return showAddError('Please answer the allergen question. "Not sure" is fine.');
+  }
 
   submitBtn.disabled = true; // prevent double-taps from adding it twice
   try {
@@ -335,6 +396,7 @@ els.addForm.addEventListener('submit', async (event) => {
       p_name: item.name,
       p_quantity: item.quantity,
       p_unit: item.unit,
+      p_allergens: item.allergens,
     });
     els.addDialog.close();
     await loadItems();
@@ -345,6 +407,46 @@ els.addForm.addEventListener('submit', async (event) => {
     submitBtn.disabled = false;
   }
 });
+
+// The allergen choices: one checkbox per allergen, then "None of these" and
+// "Not sure".
+function renderAllergenOptions() {
+  const option = (value, label, icon) =>
+    el('label', { className: 'allergen-option' },
+      el('input', { type: 'checkbox', name: 'allergens', value }),
+      icon,
+      label
+    );
+  els.addAllergens.replaceChildren(
+    ...ALLERGENS.map((a) => option(a.key, a.label, allergenIcon(a))),
+    option(ALLERGEN_NONE, 'None of these', null),
+    option(ALLERGEN_UNKNOWN, 'Not sure', null)
+  );
+}
+
+// "None of these" and "Not sure" can't be combined with anything else, so
+// ticking one clears the rest, and ticking an allergen clears both of them.
+els.addAllergens.addEventListener('change', (event) => {
+  const box = event.target;
+  if (!box.checked) return;
+  const isAnswerOnItsOwn = (value) => value === ALLERGEN_NONE || value === ALLERGEN_UNKNOWN;
+  for (const other of els.addAllergens.querySelectorAll('input')) {
+    if (other !== box && (isAnswerOnItsOwn(box.value) || isAnswerOnItsOwn(other.value))) {
+      other.checked = false;
+    }
+  }
+});
+
+// Turns the ticked boxes into what the database stores:
+//   a list of allergen keys, [] for "None of these", or null for "Not sure".
+// Returns undefined if nothing is ticked (the question wasn't answered).
+function readAllergens() {
+  const ticked = [...els.addAllergens.querySelectorAll('input:checked')].map((box) => box.value);
+  if (ticked.length === 0) return undefined;
+  if (ticked.includes(ALLERGEN_UNKNOWN)) return null;
+  if (ticked.includes(ALLERGEN_NONE)) return [];
+  return ticked;
+}
 
 function showAddError(message) {
   els.addError.textContent = message;
@@ -386,4 +488,5 @@ els.addDialog.addEventListener('close', () => {
 });
 
 els.addUnit.replaceChildren(...UNITS.map((unit) => new Option(unit, unit)));
+renderAllergenOptions();
 loadItems();
