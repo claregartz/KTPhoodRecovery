@@ -79,6 +79,13 @@ create policy "Anyone can view items"
 -- p_allergens follows the same rules as the column: null = not sure,
 -- '{}' = none of these. It's optional so older copies of the app that don't
 -- send it still work (their items count as "not sure").
+--
+-- Food stacks: if the fridge already has the same food (name ignoring
+-- capitals and extra spaces) in the same unit with the same allergen answer,
+-- the quantity is added to that item instead of making a second one. So
+-- adding 3 pizza to 5 pizza gives one "Pizza: 8". If the allergens differ,
+-- they stay separate, so nobody's allergy info gets mixed up. The app can
+-- tell a merge happened because the returned quantity is more than it sent.
 
 -- Before allergens, add_item took 3 arguments. Remove that version so there
 -- aren't two add_items.
@@ -94,6 +101,8 @@ set search_path = ''
 as $$
 declare
   v_name text := btrim(coalesce(p_name, ''));
+  -- "  Pizza " and "pizza" count as the same food
+  v_match_name text := lower(regexp_replace(btrim(coalesce(p_name, '')), '\s+', ' ', 'g'));
   v_all_allergens text[] := array['peanuts', 'tree_nuts', 'milk', 'eggs', 'gluten',
                                   'soy', 'fish', 'sesame'];
   v_allergens text[];
@@ -123,9 +132,30 @@ begin
     );
   end if;
 
-  insert into public.items (name, quantity, unit, allergens)
-  values (v_name, p_quantity, p_unit, v_allergens)
+  -- If two people add "Pizza" at the same moment, make the second wait for
+  -- the first, so they stack instead of both creating a new item.
+  perform pg_advisory_xact_lock(hashtext(v_match_name));
+
+  -- Stack onto a matching item that's still in the fridge, if there is one.
+  -- (`is not distinct from` treats two nulls, i.e. two "not sure"s, as equal.)
+  update public.items
+  set quantity = quantity + p_quantity, updated_at = now()
+  where id = (
+    select id from public.items
+    where quantity > 0
+      and unit = p_unit
+      and allergens is not distinct from v_allergens
+      and lower(regexp_replace(name, '\s+', ' ', 'g')) = v_match_name
+    order by updated_at desc
+    limit 1
+  )
   returning * into v_item;
+
+  if not found then
+    insert into public.items (name, quantity, unit, allergens)
+    values (v_name, p_quantity, p_unit, v_allergens)
+    returning * into v_item;
+  end if;
   return v_item;
 end;
 $$;

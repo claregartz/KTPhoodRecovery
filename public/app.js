@@ -28,6 +28,19 @@ const ALLERGENS = [
   { key: 'sesame',    label: 'Sesame',    icon: null },
 ];
 
+// Suggested while typing a name in the Add form, so the same food gets the
+// same name ("Pizza", not "pizza" and "PIZZA") and stacks. Anything else can
+// still be typed. Names already in the fridge are suggested too.
+const COMMON_FOODS = [
+  'Apples', 'Bagels', 'Bananas', 'Bread', 'Burritos', 'Cake', 'Chicken',
+  'Chips', 'Clementines', 'Cookies', 'Croissants', 'Curry', 'Donuts',
+  'Dumplings', 'Fried rice', 'Fruit cups', 'Fruit salad', 'Granola bars',
+  'Grapes', 'Hummus', 'Lasagna', 'Mac and cheese', 'Milk', 'Muffins',
+  'Noodles', 'Oranges', 'Pasta', 'Pastries', 'Pizza', 'Quesadillas', 'Rice',
+  'Rice and beans', 'Salad', 'Sandwiches', 'Soup', 'Stir fry', 'Sushi',
+  'Tacos', 'Veggie tray', 'Wraps', 'Yogurt',
+];
+
 // The two extra answers in the Add form. Each one cancels out every other
 // choice. In the database "none" is stored as an empty list and "not sure"
 // as null.
@@ -63,6 +76,9 @@ const els = {
   addDialog: document.getElementById('add-dialog'),
   addForm: document.getElementById('add-form'),
   addName: document.getElementById('add-name'),
+  foodSuggestions: document.getElementById('food-suggestions'),
+  stackHint: document.getElementById('stack-hint'),
+  noticeBanner: document.getElementById('notice-banner'),
   addQuantity: document.getElementById('add-quantity'),
   addUnit: document.getElementById('add-unit'),
   addAllergens: document.getElementById('add-allergens'),
@@ -356,6 +372,15 @@ function hideError() {
   els.errorBanner.hidden = true;
 }
 
+// A green message that goes away on its own after a few seconds.
+let noticeTimer;
+function showNotice(message) {
+  els.noticeBanner.textContent = message;
+  els.noticeBanner.hidden = false;
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => { els.noticeBanner.hidden = true; }, 6000);
+}
+
 // ---------------------------------------------------------------------------
 // Add item dialog
 // ---------------------------------------------------------------------------
@@ -363,6 +388,8 @@ function hideError() {
 els.openAddBtn.addEventListener('click', () => {
   els.addForm.reset();
   els.addError.hidden = true;
+  fillFoodSuggestions();
+  updateStackHint();
   els.addDialog.showModal();
   els.addName.focus();
 });
@@ -373,7 +400,7 @@ els.addForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const submitBtn = els.addForm.querySelector('[type="submit"]');
   const item = {
-    name: els.addName.value.trim(),
+    name: standardName(els.addName.value),
     quantity: Number(els.addQuantity.value),
     unit: els.addUnit.value,
     allergens: readAllergens(),
@@ -391,13 +418,18 @@ els.addForm.addEventListener('submit', async (event) => {
 
   submitBtn.disabled = true; // prevent double-taps from adding it twice
   try {
-    await callFunction('add_item', {
+    const saved = await callFunction('add_item', {
       p_name: item.name,
       p_quantity: item.quantity,
       p_unit: item.unit,
       p_allergens: item.allergens,
     });
     els.addDialog.close();
+    // The database stacks it onto a matching item when there is one (see
+    // add_item in supabase/schema.sql). Then it has more than we added.
+    if (saved.quantity > item.quantity) {
+      showNotice(`Added ${item.quantity} to ${saved.name}, now ${saved.quantity} ${unitLabel(saved)}.`);
+    }
     await loadItems();
     openFridge(); // show them their item on the shelf
   } catch (err) {
@@ -446,6 +478,57 @@ function readAllergens() {
   if (ticked.includes(ALLERGEN_NONE)) return [];
   return ticked;
 }
+
+// ---------------------------------------------------------------------------
+// Food stacks: same food, one item
+// ---------------------------------------------------------------------------
+// The database decides whether to stack (add_item in supabase/schema.sql).
+// This part just helps people type matching names and tells them ahead of
+// time when their food will stack.
+
+// "  pizza " and "Pizza" are the same food. Must match how add_item compares
+// names.
+function nameKey(name) {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+// Fixes capitals to match a food already in the fridge or a common food,
+// so "pizza" is saved as "Pizza". Anything else is kept as typed.
+function standardName(typed) {
+  const key = nameKey(typed);
+  const known = [...state.items.map((i) => i.name), ...COMMON_FOODS];
+  return known.find((name) => nameKey(name) === key) ?? typed.trim();
+}
+
+// Fridge items first, then common foods, with no repeats.
+function fillFoodSuggestions() {
+  const seen = new Set();
+  const names = [...state.items.map((i) => i.name), ...COMMON_FOODS].filter((name) => {
+    const key = nameKey(name);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  els.foodSuggestions.replaceChildren(...names.map((name) => new Option(name)));
+}
+
+// "Pizza is already in the fridge (5 servings)…" under the name box when the
+// name and unit match something. Allergens have to match too, which the
+// person may not have answered yet, so the hint says so.
+function updateStackHint() {
+  const key = nameKey(els.addName.value);
+  const match = key && state.items.find((i) =>
+    nameKey(i.name) === key && i.unit === els.addUnit.value);
+  els.stackHint.hidden = !match;
+  if (match) {
+    els.stackHint.textContent = `${match.name} is already in the fridge ` +
+      `(${match.quantity} ${unitLabel(match)}). If the allergens match, ` +
+      'this adds to it instead of making a new item.';
+  }
+}
+
+els.addName.addEventListener('input', updateStackHint);
+els.addUnit.addEventListener('change', updateStackHint);
 
 function showAddError(message) {
   els.addError.textContent = message;
