@@ -50,7 +50,7 @@ at a glance and lets anyone keep that answer accurate.
   so a blank is never mistaken for "safe". A note in the fridge reminds people
   this info comes from whoever added the food.
 - **Vegan / vegetarian:** an optional question when adding. A marked item
-  shows a green "🌱 Vegan" or "🌱 Vegetarian" tag. The app won't accept
+  shows a green "🌱 Vegan" or "🥦 Vegetarian" tag. The app won't accept
   contradictions like vegan food that contains milk.
 - **Take some:** "Take 1", or "Take…" to choose an amount. The quantity goes
   down by that many.

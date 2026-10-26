@@ -50,8 +50,8 @@ const COMMON_FOODS = [
 // database (null = not marked) and must match supabase/schema.sql.
 // `rulesOut` lists allergens that can't be in it, also checked there.
 const DIETS = [
-  { key: 'vegan',      label: 'Vegan',      rulesOut: ['milk', 'eggs', 'fish', 'shellfish'] },
-  { key: 'vegetarian', label: 'Vegetarian', rulesOut: ['fish', 'shellfish'] },
+  { key: 'vegan',      label: 'Vegan',      icon: '🌱', rulesOut: ['milk', 'eggs', 'fish', 'shellfish'] },
+  { key: 'vegetarian', label: 'Vegetarian', icon: '🥦', rulesOut: ['fish', 'shellfish'] },
 ];
 
 // The two extra answers in the Add form. Each one cancels out every other
@@ -324,12 +324,12 @@ function renderItem(item) {
 
 // One of: "Contains 🥛 Milk 🌾 Gluten", "None of the listed allergens", or
 // "Allergens unknown" (null, which includes items added before allergens
-// existed). A "🌱 Vegan" or "🌱 Vegetarian" chip comes first if marked.
+// existed). A "🌱 Vegan" or "🥦 Vegetarian" chip comes first if marked.
 function renderAllergens(item) {
   const diet = DIETS.find((d) => d.key === item.diet);
   const dietChip = diet
     ? el('span', { className: 'allergen-chip diet-chip' },
-        el('span', { className: 'allergen-icon', ariaHidden: 'true' }, '🌱'), diet.label)
+        el('span', { className: 'allergen-icon', ariaHidden: 'true' }, diet.icon), diet.label)
     : null;
   if (item.allergens == null) {
     return el('div', {},
@@ -530,6 +530,7 @@ function renderAllergenOptions() {
   els.addDiet.replaceChildren(...DIETS.map((d) =>
     el('label', { className: 'allergen-option' },
       el('input', { type: 'checkbox', name: 'diet', value: d.key }),
+      el('span', { className: 'allergen-icon', ariaHidden: 'true' }, d.icon),
       d.label
     )
   ));
