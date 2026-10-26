@@ -38,17 +38,20 @@ at a glance and lets anyone keep that answer accurate.
   (`servings`, `items`, `containers`, or `bags`). The name box suggests
   common foods and what's already in the fridge.
 - **Food stacks:** adding a food that's already in the fridge, with the same
-  unit and the same allergen answer, adds to that item ("Pizza: 5" + 3 =
-  "Pizza: 8") instead of making a second one. Capitals and extra spaces don't
-  matter. If the allergens differ, they stay separate so allergy info never
-  gets mixed. The form says ahead of time when something will stack.
+  unit and the same allergen and vegan/vegetarian answers, adds to that item
+  ("Pizza: 5" + 3 = "Pizza: 8") instead of making a second one. Capitals and
+  extra spaces don't matter. If the answers differ, they stay separate so
+  allergy and diet info never gets mixed. The form says ahead of time when something will stack.
 - **Allergens:** when adding, people must answer "Does it contain any of
-  these?" by ticking any of 8 common allergens (peanuts, tree nuts, milk,
-  eggs, gluten, soy, fish, sesame), or picking **None of these** or
+  these?" by ticking any of 9 common allergens (peanuts, tree nuts, milk,
+  eggs, gluten, soy, fish, shellfish, sesame), or picking **None of these** or
   **Not sure**. Each card shows the answer with icons. "Not sure" (and every
   item added before this feature) shows a yellow "Allergens unknown" warning,
   so a blank is never mistaken for "safe". A note in the fridge reminds people
   this info comes from whoever added the food.
+- **Vegan / vegetarian:** an optional question when adding. A marked item
+  shows a green "🌱 Vegan" or "🥦 Vegetarian" tag. The app won't accept
+  contradictions like vegan food that contains milk.
 - **Take some:** "Take 1", or "Take…" to choose an amount. The quantity goes
   down by that many.
 - **Mark empty:** for when the fridge doesn't match the app. Asks
@@ -199,7 +202,8 @@ button text stays easy to read.
 | `created_at` | timestamptz | When it was added |
 | `updated_at` | timestamptz | When it last changed |
 | `emptied_at` | timestamptz or null | When it hit 0 |
-| `allergens` | text[] or null | `null` = not sure, `{}` = none of these, `{milk,gluten}` = contains those. Keys: `peanuts`, `tree_nuts`, `milk`, `eggs`, `gluten`, `soy`, `fish`, `sesame` |
+| `allergens` | text[] or null | `null` = not sure, `{}` = none of these, `{milk,gluten}` = contains those. Keys: `peanuts`, `tree_nuts`, `milk`, `eggs`, `gluten`, `soy`, `fish`, `shellfish`, `sesame` |
+| `diet` | text or null | `null` = not marked, `vegan`, or `vegetarian`. Vegan can't be combined with `milk`, `eggs`, `fish`, or `shellfish`; vegetarian can't be combined with `fish` or `shellfish` |
 
 ### Database table: `actions`
 
@@ -238,7 +242,7 @@ message.
 
 | Function | Arguments | Does | Errors |
 |---|---|---|---|
-| `add_item` | `p_name`, `p_quantity`, `p_unit`, `p_allergens` (optional, defaults to null = not sure) | Adds a new item, or adds to a matching one already in the fridge (see Food stacks) | Bad name, quantity, unit, or allergen |
+| `add_item` | `p_name`, `p_quantity`, `p_unit`, `p_allergens` (optional, defaults to null = not sure), `p_diet` (optional, defaults to null = not marked) | Adds a new item, or adds to a matching one already in the fridge (see Food stacks) | Bad name, quantity, unit, allergen, or diet; diet that contradicts the allergens |
 | `take_item` | `p_id`, `p_amount` | Subtracts `p_amount` | Bad amount, more than is left, already empty, no such item |
 | `empty_item` | `p_id` | Sets quantity to 0. Returns `null` (nothing to undo) if already empty | No such item |
 | `undo_action` | `p_token` | Reverses that change: removes an added item, takes back a stacked amount, adds a take back, or restores an emptied amount | Older than 15 minutes, already undone, someone emptied it since (undo take), someone changed it since (undo add), not enough left (undo stack) |
@@ -257,7 +261,8 @@ Example item:
   "created_at": "2026-10-05T20:06:29.123+00:00",
   "updated_at": "2026-10-05T20:31:02.456+00:00",
   "emptied_at": null,
-  "allergens": ["milk", "gluten"]
+  "allergens": ["milk", "gluten"],
+  "diet": "vegetarian"
 }
 ```
 
