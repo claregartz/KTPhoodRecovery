@@ -24,6 +24,7 @@
   --red-tint: #f8e9eb;
   --amber: #7a4f00;          /* "allergens unknown" warning */
   --amber-tint: #fdf2d6;
+  --green-light: #b5df7d;    /* FRN green lightened to read on dark slate */
   --radius: 12px;
 
   --font-heading: "Arvo", Georgia, serif;
@@ -409,7 +410,6 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   color: var(--red);
 }
 .banner { margin: 16px 0 0; }
-.banner-info { background: var(--green-tint); color: var(--green-strong); }
 
 /* Empty fridge: the Cornell FRN bear */
 .empty-state { text-align: center; padding: 8px 0 16px; }
@@ -453,6 +453,54 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   border-top: 1px solid var(--border);
 }
 .bottombar .btn { max-width: 608px; margin: 0 auto; display: block; min-height: 52px; font-size: 1.1rem; }
+
+/* ---- Undo popup ---- */
+/* A dark slate pill floating just above the bottom bar, so it stands out
+   from the white page without adding a new color. While hidden it's
+   invisible and can't be tapped; it fades and slides in and out. */
+.toast {
+  position: fixed;
+  z-index: 10; /* above the fridge door and bottom bar */
+  left: 16px; right: 16px;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  max-width: 608px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 20px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--on-green);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.2);
+  opacity: 0;
+  transform: translateY(8px);
+  visibility: hidden;
+  transition: opacity 0.25s, transform 0.25s, visibility 0s 0.25s;
+}
+.toast.show {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition: opacity 0.25s, transform 0.25s;
+}
+.toast-message { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.toast-action {
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--green-light);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.toast-action:focus-visible { outline: 3px solid var(--green-light); outline-offset: -3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast.show { transform: none; transition: none; }
+}
 
 /* ---- Add dialog ---- */
 dialog {
