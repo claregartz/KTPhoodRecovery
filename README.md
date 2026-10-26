@@ -35,7 +35,13 @@ at a glance and lets anyone keep that answer accurate.
 - **See what's in the fridge:** each item and how much is left
   (e.g. "Lasagna: 10 servings · updated 5 min ago").
 - **Add an item:** name, whole-number quantity, and a unit
-  (`servings`, `items`, `containers`, or `bags`).
+  (`servings`, `items`, `containers`, or `bags`). The name box suggests
+  common foods and what's already in the fridge.
+- **Food stacks:** adding a food that's already in the fridge, with the same
+  unit and the same allergen answer, adds to that item ("Pizza: 5" + 3 =
+  "Pizza: 8") instead of making a second one. Capitals and extra spaces don't
+  matter. If the allergens differ, they stay separate so allergy info never
+  gets mixed. The form says ahead of time when something will stack.
 - **Allergens:** when adding, people must answer "Does it contain any of
   these?" by ticking any of 8 common allergens (peanuts, tree nuts, milk,
   eggs, gluten, soy, fish, sesame), or picking **None of these** or
@@ -206,7 +212,7 @@ item, or fails with a plain-English error message.
 
 | Function | Arguments | Does | Errors |
 |---|---|---|---|
-| `add_item` | `p_name`, `p_quantity`, `p_unit`, `p_allergens` (optional, defaults to null = not sure) | Adds a new item | Bad name, quantity, unit, or allergen |
+| `add_item` | `p_name`, `p_quantity`, `p_unit`, `p_allergens` (optional, defaults to null = not sure) | Adds a new item, or adds to a matching one already in the fridge (see Food stacks) | Bad name, quantity, unit, or allergen |
 | `take_item` | `p_id`, `p_amount` | Subtracts `p_amount` | Bad amount, more than is left, already empty, no such item |
 | `empty_item` | `p_id` | Sets quantity to 0 | No such item |
 

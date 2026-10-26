@@ -409,6 +409,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   color: var(--red);
 }
 .banner { margin: 16px 0 0; }
+.banner-info { background: var(--green-tint); color: var(--green-strong); }
 
 /* Empty fridge: the Cornell FRN bear */
 .empty-state { text-align: center; padding: 8px 0 16px; }

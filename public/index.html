@@ -34,6 +34,8 @@
   <main>
     <!-- Error messages appear here -->
     <p class="banner" id="error-banner" role="alert" hidden></p>
+    <!-- Good news, e.g. "Added 3 to Pizza, now 8 servings" -->
+    <p class="banner banner-info" id="notice-banner" role="status" hidden></p>
 
     <!-- "—— In the fridge now ——" style heading, like the FRN website's -->
     <h1 class="section-heading" id="list-heading">In the fridge now</h1>
@@ -95,7 +97,13 @@
 
       <label for="add-name">What is it?</label>
       <input id="add-name" name="name" type="text" maxlength="100"
-             placeholder="e.g. Lasagna" autocomplete="off" required>
+             placeholder="e.g. Lasagna" autocomplete="off" required
+             list="food-suggestions" aria-describedby="stack-hint">
+      <!-- Suggestions while typing: common foods plus what's already in the
+           fridge. app.js fills it in. -->
+      <datalist id="food-suggestions"></datalist>
+      <!-- "Pizza is already in the fridge…", shown when this will stack -->
+      <p class="hint" id="stack-hint" hidden></p>
 
       <div class="row">
         <div class="field">
