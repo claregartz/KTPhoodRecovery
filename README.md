@@ -53,6 +53,10 @@ at a glance and lets anyone keep that answer accurate.
   down by that many.
 - **Mark empty:** for when the fridge doesn't match the app. Asks
   "are you sure?" first.
+- **Undo:** after you add, take, or empty something, an **Undo** popup
+  shows for 8 seconds. It only undoes *your* last change, and it
+  never overwrites what other people did in the meantime (see
+  [`undo_action`](#database-functions)).
 - **Empty items disappear:** when the quantity reaches 0 (by taking or by
   marking empty), the item is hidden from the list. It stays in the database
   with an `emptied_at` timestamp so history isn't lost.
@@ -127,8 +131,9 @@ items**.
 1. The browser loads `index.html`, `styles.css`, `config.js`, and `app.js`.
 2. `app.js` reads the list straight from the `items` table.
 3. To change anything, `app.js` calls a database function (`add_item`,
-   `take_item`, `empty_item`). The function checks the input, updates the
-   table, and returns the item, or an error message the app shows as-is.
+   `take_item`, `empty_item`, `undo_action`). The function checks the
+   input, updates the table, and returns an undo code, or an error message
+   the app shows as-is.
 4. Supabase Realtime tells every open copy of the app that something
    changed, and each one reloads its list.
 
@@ -137,12 +142,17 @@ items**.
 - **The rules live in the database.** There's no server of our own, and the
   anon key in `config.js` is visible to anyone who looks. So the database
   only lets the public **read** the table (a row level security policy).
-  All writes go through the three functions, which do the real checks. The
+  All writes go through the functions, which do the real checks. The
   frontend's checks only give quick feedback.
 - **"Take 2", not "set to 8".** If two people both see 10 servings and each
   take 2, sending "set quantity to 8" twice would give 8 (wrong). Sending
   "take 2" twice lets the database do `quantity = quantity - 2` each time,
   giving 6 (right).
+- **Undo does the opposite, not "put it back how it was".** Undoing
+  "take 2" adds 2 back, so if someone else took 3 in the meantime, their 3
+  still count. Each change gets a random undo code that only the person
+  who made it receives, and the `actions` table that stores the codes
+  can't be read by the app.
 - **There's no `status` column.** An item is empty exactly when
   `quantity = 0`, so the two values can never disagree.
 
@@ -191,6 +201,20 @@ button text stays easy to read.
 | `emptied_at` | timestamptz or null | When it hit 0 |
 | `allergens` | text[] or null | `null` = not sure, `{}` = none of these, `{milk,gluten}` = contains those. Keys: `peanuts`, `tree_nuts`, `milk`, `eggs`, `gluten`, `soy`, `fish`, `sesame` |
 
+### Database table: `actions`
+
+A log of every add, take, and empty, used for undo. The app can't read it.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | bigint, primary key | Auto-numbered |
+| `item_id` | bigint | The item changed. Deleted along with the item |
+| `kind` | text | `add` (new item), `stack` (added to an existing item), `take`, or `empty` |
+| `amount` | integer | How many were added, taken, or emptied |
+| `undo_token` | uuid | The secret undo code |
+| `created_at` | timestamptz | When it happened |
+| `undone_at` | timestamptz or null | When it was undone |
+
 **To change the allergen list:** edit `ALLERGENS` in `public/app.js` and the
 two lists in `supabase/schema.sql` (the `items_allergens_check` constraint
 and `add_item`), then re-run the schema file.
@@ -207,14 +231,17 @@ alter table public.items add constraint items_unit_check
 
 ## Database functions
 
-The app calls these with `db.rpc('name', { ...args })`. Each returns the
-item, or fails with a plain-English error message.
+The app calls these with `db.rpc('name', { ...args })`. The first three
+return an undo code to pass to `undo_action` (`add_item` returns
+`{ undo_token, item }`). Any of them can fail with a plain-English error
+message.
 
 | Function | Arguments | Does | Errors |
 |---|---|---|---|
 | `add_item` | `p_name`, `p_quantity`, `p_unit`, `p_allergens` (optional, defaults to null = not sure) | Adds a new item, or adds to a matching one already in the fridge (see Food stacks) | Bad name, quantity, unit, or allergen |
 | `take_item` | `p_id`, `p_amount` | Subtracts `p_amount` | Bad amount, more than is left, already empty, no such item |
-| `empty_item` | `p_id` | Sets quantity to 0 | No such item |
+| `empty_item` | `p_id` | Sets quantity to 0. Returns `null` (nothing to undo) if already empty | No such item |
+| `undo_action` | `p_token` | Reverses that change: removes an added item, takes back a stacked amount, adds a take back, or restores an emptied amount | Older than 15 minutes, already undone, someone emptied it since (undo take), someone changed it since (undo add), not enough left (undo stack) |
 
 Reading the list doesn't need a function: the app selects from `items` where
 `quantity > 0`, newest first.
@@ -240,8 +267,8 @@ Example item:
   and there's no record of who did it. This is fine for a trusted community
   MVP, but there's no protection against pranks or mistakes. Supabase has
   built-in login if we want it later.
-- **No undo:** an item marked empty by mistake disappears from the list.
-  It's still in the database, but the app has no way to bring it back yet.
+- **Undo is limited:** only your most recent change, and only while its
+  8-second popup is showing.
 - **One fridge only.**
 - **Needs internet:** the app can't show or change anything offline.
 - **Free Supabase projects pause after about a week with no activity.**

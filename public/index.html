@@ -34,8 +34,6 @@
   <main>
     <!-- Error messages appear here -->
     <p class="banner" id="error-banner" role="alert" hidden></p>
-    <!-- Good news, e.g. "Added 3 to Pizza, now 8 servings" -->
-    <p class="banner banner-info" id="notice-banner" role="status" hidden></p>
 
     <!-- "—— In the fridge now ——" style heading, like the FRN website's -->
     <h1 class="section-heading" id="list-heading">In the fridge now</h1>
@@ -84,6 +82,13 @@
       </p>
     </footer>
   </main>
+
+  <!-- Pops up for a few seconds after you change something, so you can
+       take it back. app.js adds the "show" class. -->
+  <div class="toast" id="undo-toast" role="status">
+    <span class="toast-message" id="undo-message"></span>
+    <button type="button" class="toast-action" id="undo-btn">Undo</button>
+  </div>
 
   <!-- Sticks to the bottom of the screen, where thumbs can reach it -->
   <div class="bottombar">

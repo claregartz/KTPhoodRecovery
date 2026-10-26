@@ -10,6 +10,10 @@
 // Backup in case a live update is missed (e.g. the phone was asleep).
 const AUTO_REFRESH_MS = 30_000;
 
+// How long the "Undo" popup stays on screen after a change. (The database
+// separately refuses undos older than 15 minutes.)
+const UNDO_POPUP_MS = 8_000;
+
 // Units a person can choose when adding an item. Must match the list in
 // supabase/schema.sql, which is what actually enforces it.
 const UNITS = ['servings', 'items', 'containers', 'bags'];
@@ -63,6 +67,9 @@ const state = {
   // True when someone else changed the fridge while this person was busy
   // typing, so we reload once they're done.
   stale: false,
+  // This person's most recent change while its Undo popup is showing:
+  // { token, message }. Kept only on this device.
+  lastAction: null,
 };
 
 // Grab the page elements we need once, up front.
@@ -78,7 +85,6 @@ const els = {
   addName: document.getElementById('add-name'),
   foodSuggestions: document.getElementById('food-suggestions'),
   stackHint: document.getElementById('stack-hint'),
-  noticeBanner: document.getElementById('notice-banner'),
   addQuantity: document.getElementById('add-quantity'),
   addUnit: document.getElementById('add-unit'),
   addAllergens: document.getElementById('add-allergens'),
@@ -90,6 +96,9 @@ const els = {
   doorNote: document.getElementById('door-note'),
   openFridgeBtn: document.getElementById('open-fridge-btn'),
   closeFridgeBtn: document.getElementById('close-fridge-btn'),
+  undoToast: document.getElementById('undo-toast'),
+  undoMessage: document.getElementById('undo-message'),
+  undoBtn: document.getElementById('undo-btn'),
 };
 
 // ---------------------------------------------------------------------------
@@ -139,10 +148,12 @@ async function loadItems() {
 }
 
 // Runs an action (take / empty), then reloads the list so everyone's
-// changes, not just ours, show up.
-async function runItemAction(name, args) {
+// changes, not just ours, show up. `message` describes the change for the
+// Undo popup, e.g. "Took 2 servings of Lasagna".
+async function runItemAction(name, args, message) {
   try {
-    await callFunction(name, args);
+    const undoToken = await callFunction(name, args);
+    rememberLastAction(undoToken, message);
     state.openPanel = null;
   } catch (err) {
     showError(err.message);
@@ -150,12 +161,50 @@ async function runItemAction(name, args) {
   await loadItems();
 }
 
-function takeItem(id, amount) {
-  return runItemAction('take_item', { p_id: id, p_amount: amount });
+function takeItem(item, amount) {
+  return runItemAction(
+    'take_item',
+    { p_id: item.id, p_amount: amount },
+    `Took ${amountText(amount, item.unit)} of ${item.name}`
+  );
 }
 
-function emptyItem(id) {
-  return runItemAction('empty_item', { p_id: id });
+function emptyItem(item) {
+  return runItemAction('empty_item', { p_id: item.id }, `Marked ${item.name} as empty`);
+}
+
+// Undo only ever reverses this person's own last change: the database
+// hands the undo code only to whoever made the change.
+let undoTimer;
+
+function rememberLastAction(token, message) {
+  clearTimeout(undoTimer);
+  // No code means nothing changed (e.g. it was already empty).
+  state.lastAction = token ? { token, message } : null;
+  if (token) {
+    undoTimer = setTimeout(() => {
+      state.lastAction = null;
+      render();
+    }, UNDO_POPUP_MS);
+  }
+}
+
+async function undoLastAction() {
+  const action = state.lastAction;
+  if (!action) return;
+  els.undoBtn.disabled = true; // prevent double-taps
+  // Clear it either way: if it failed, the error says why, and trying
+  // again won't help.
+  clearTimeout(undoTimer);
+  state.lastAction = null;
+  try {
+    await callFunction('undo_action', { p_token: action.token });
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    els.undoBtn.disabled = false;
+  }
+  await loadItems();
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +218,11 @@ function render() {
     ? `Updated ${timeAgo(state.lastLoaded)}`
     : 'Loading…';
   els.doorNote.textContent = doorNoteText();
+
+  // The message is left in place while hiding so it doesn't blank out
+  // mid-fade.
+  els.undoToast.classList.toggle('show', Boolean(state.lastAction));
+  if (state.lastAction) els.undoMessage.textContent = state.lastAction.message;
 }
 
 // The sticky note on the fridge door, e.g. "3 things inside!"
@@ -229,7 +283,7 @@ function renderItem(item) {
   return el('li', { className: 'item' },
     el('h2', { className: 'item-name' }, item.name),
     el('p', { className: 'item-meta' },
-      el('span', { className: 'item-qty' }, `${item.quantity} ${unitLabel(item)}`),
+      el('span', { className: 'item-qty' }, amountText(item.quantity, item.unit)),
       ` · updated ${timeAgo(new Date(item.updated_at))}`
     ),
     renderAllergens(item),
@@ -237,7 +291,7 @@ function renderItem(item) {
       el('button', {
         type: 'button',
         className: 'btn btn-primary',
-        onclick: () => takeItem(item.id, 1),
+        onclick: () => takeItem(item, 1),
       }, 'Take 1'),
       // "Take…" only makes sense if there's more than 1 left
       item.quantity > 1
@@ -316,7 +370,7 @@ function renderTakePanel(item) {
       showError(`Enter a whole number from 1 to ${item.quantity}.`);
       return;
     }
-    takeItem(item.id, amount);
+    takeItem(item, amount);
   });
   // Focus the box once it's on screen so the number keyboard pops up.
   requestAnimationFrame(() => input.focus());
@@ -330,7 +384,7 @@ function renderEmptyPanel(item) {
     el('button', {
       type: 'button',
       className: 'btn btn-danger-solid',
-      onclick: () => emptyItem(item.id),
+      onclick: () => emptyItem(item),
     }, 'Yes, it\'s empty')
   );
 }
@@ -347,9 +401,10 @@ function closePanel() {
   else render();
 }
 
-// "1 servings" reads oddly, so drop the trailing "s" for a quantity of 1.
-function unitLabel(item) {
-  return item.quantity === 1 ? item.unit.replace(/s$/, '') : item.unit;
+// amountText(3, 'servings') -> "3 servings". "1 servings" reads oddly, so
+// drop the trailing "s" for a quantity of 1.
+function amountText(quantity, unit) {
+  return `${quantity} ${quantity === 1 ? unit.replace(/s$/, '') : unit}`;
 }
 
 // Turns a date into "just now", "5 min ago", "3 h ago", or "2 d ago".
@@ -370,15 +425,6 @@ function showError(message) {
 
 function hideError() {
   els.errorBanner.hidden = true;
-}
-
-// A green message that goes away on its own after a few seconds.
-let noticeTimer;
-function showNotice(message) {
-  els.noticeBanner.textContent = message;
-  els.noticeBanner.hidden = false;
-  clearTimeout(noticeTimer);
-  noticeTimer = setTimeout(() => { els.noticeBanner.hidden = true; }, 6000);
 }
 
 // ---------------------------------------------------------------------------
@@ -424,12 +470,13 @@ els.addForm.addEventListener('submit', async (event) => {
       p_unit: item.unit,
       p_allergens: item.allergens,
     });
-    els.addDialog.close();
     // The database stacks it onto a matching item when there is one (see
     // add_item in supabase/schema.sql). Then it has more than we added.
-    if (saved.quantity > item.quantity) {
-      showNotice(`Added ${item.quantity} to ${saved.name}, now ${saved.quantity} ${unitLabel(saved)}.`);
-    }
+    const stacked = saved.item.quantity > item.quantity;
+    rememberLastAction(saved.undo_token, stacked
+      ? `Added ${item.quantity} to ${saved.item.name}, now ${amountText(saved.item.quantity, saved.item.unit)}`
+      : `Added ${amountText(item.quantity, item.unit)} of ${item.name}`);
+    els.addDialog.close();
     await loadItems();
     openFridge(); // show them their item on the shelf
   } catch (err) {
@@ -522,7 +569,7 @@ function updateStackHint() {
   els.stackHint.hidden = !match;
   if (match) {
     els.stackHint.textContent = `${match.name} is already in the fridge ` +
-      `(${match.quantity} ${unitLabel(match)}). If the allergens match, ` +
+      `(${amountText(match.quantity, match.unit)}). If the allergens match, ` +
       'this adds to it instead of making a new item.';
   }
 }
@@ -543,6 +590,7 @@ els.refreshBtn.addEventListener('click', loadItems);
 els.openFridgeBtn.addEventListener('click', openFridge);
 els.fridgeDoor.addEventListener('click', openFridge);
 els.closeFridgeBtn.addEventListener('click', closeFridge);
+els.undoBtn.addEventListener('click', undoLastAction);
 
 // Reload, unless the person is in the middle of typing: redrawing would
 // wipe their input, so remember to reload once they're done instead.

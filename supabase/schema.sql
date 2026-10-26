@@ -8,8 +8,8 @@
 -- every rule has to live here in the database:
 --   * Anyone can READ items (row level security policy below).
 --   * Nobody can insert/update/delete rows directly. All changes go through
---     the three functions below (add_item, take_item, empty_item), which
---     check their input first.
+--     the functions below (add_item, take_item, empty_item, undo_action),
+--     which check their input first.
 
 -- ---------------------------------------------------------------------------
 -- Table
@@ -51,9 +51,35 @@ alter table public.items add constraint items_allergens_check
   check (allergens <@ array['peanuts', 'tree_nuts', 'milk', 'eggs', 'gluten',
                             'soy', 'fish', 'sesame']::text[]);
 
+-- Every add / take / empty is recorded here so it can be undone.
+--
+-- Undo works by doing the opposite change (undoing "take 2" adds 2 back)
+-- rather than restoring an old quantity, so anything other people did in
+-- the meantime still counts. `undo_token` is a random code that only the
+-- person who made the change gets back, so nobody can undo someone else's
+-- change.
+create table if not exists public.actions (
+  id          bigint      generated always as identity primary key,
+  item_id     bigint      not null references public.items (id) on delete cascade,
+  kind        text        not null,
+  amount      integer     not null check (amount >= 1),
+  undo_token  uuid        not null unique default gen_random_uuid(),
+  created_at  timestamptz not null default now(),
+  undone_at   timestamptz
+);
+
+-- 'add' made a new item; 'stack' added to one already in the fridge.
+alter table public.actions drop constraint if exists actions_kind_check;
+alter table public.actions add constraint actions_kind_check
+  check (kind in ('add', 'stack', 'take', 'empty'));
+
 -- ---------------------------------------------------------------------------
 -- Permissions
 -- ---------------------------------------------------------------------------
+
+-- No policies on `actions`, so the app can't read it at all (that would
+-- leak everyone's undo codes). Only the functions below touch it.
+alter table public.actions enable row level security;
 
 alter table public.items enable row level security;
 
@@ -73,8 +99,21 @@ create policy "Anyone can view items"
 -- permissions, so it can write even though the app can't. Each function
 -- checks its input before writing. Errors are raised with a plain-English
 -- message, which the app shows to the user as-is.
+--
+-- add_item, take_item and empty_item return an undo code for undo_action
+-- (add_item returns it alongside the item).
 
--- add_item('Lasagna', 10, 'servings', '{milk,gluten}') -> the new item
+-- These used to return the item. Postgres can't change what a function
+-- returns in place, so remove the old versions first. (Before allergens,
+-- add_item took 3 arguments; remove that version too so there aren't two
+-- add_items.)
+drop function if exists public.add_item(text, integer, text);
+drop function if exists public.add_item(text, integer, text, text[]);
+drop function if exists public.take_item(bigint, integer);
+drop function if exists public.empty_item(bigint);
+
+-- add_item('Lasagna', 10, 'servings', '{milk,gluten}')
+--   -> { "undo_token": <undo code>, "item": <the new or stacked item> }
 --
 -- p_allergens follows the same rules as the column: null = not sure,
 -- '{}' = none of these. It's optional so older copies of the app that don't
@@ -86,15 +125,12 @@ create policy "Anyone can view items"
 -- adding 3 pizza to 5 pizza gives one "Pizza: 8". If the allergens differ,
 -- they stay separate, so nobody's allergy info gets mixed up. The app can
 -- tell a merge happened because the returned quantity is more than it sent.
-
--- Before allergens, add_item took 3 arguments. Remove that version so there
--- aren't two add_items.
-drop function if exists public.add_item(text, integer, text);
+-- Undoing a stack takes back just the amount added, not the whole item.
 
 create or replace function public.add_item(
   p_name text, p_quantity integer, p_unit text, p_allergens text[] default null
 )
-returns public.items
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -107,6 +143,8 @@ declare
                                   'soy', 'fish', 'sesame'];
   v_allergens text[];
   v_item public.items;
+  v_kind text := 'add'; -- 'stack' if it was added to an existing item
+  v_token uuid;
 begin
   if char_length(v_name) not between 1 and 100 then
     raise exception 'Name must be 1–100 characters.';
@@ -151,29 +189,36 @@ begin
   )
   returning * into v_item;
 
-  if not found then
+  if found then
+    v_kind := 'stack';
+  else
     insert into public.items (name, quantity, unit, allergens)
     values (v_name, p_quantity, p_unit, v_allergens)
     returning * into v_item;
   end if;
-  return v_item;
+
+  insert into public.actions (item_id, kind, amount)
+  values (v_item.id, v_kind, p_quantity)
+  returning undo_token into v_token;
+  return jsonb_build_object('undo_token', v_token, 'item', to_jsonb(v_item));
 end;
 $$;
 
--- take_item(3, 2) -> the updated item
+-- take_item(3, 2) -> undo code
 --
 -- Subtracting happens inside the database (quantity = quantity - amount), so
 -- if two people tap "Take" at the same moment, both subtractions count.
 -- `quantity >= amount` makes sure we never go below zero. When the result
 -- hits zero, emptied_at is stamped.
 create or replace function public.take_item(p_id bigint, p_amount integer)
-returns public.items
+returns uuid
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_item public.items;
+  v_item  public.items;
+  v_token uuid;
 begin
   if p_amount is null or p_amount < 1 then
     raise exception 'Amount must be a whole number of at least 1.';
@@ -186,44 +231,134 @@ begin
   where id = p_id and quantity >= p_amount
   returning * into v_item;
 
-  if found then
-    return v_item;
+  if not found then
+    -- Nothing was updated. Work out why so the user gets a helpful message.
+    select * into v_item from public.items where id = p_id;
+    if not found then
+      raise exception 'Item not found.';
+    elsif v_item.quantity = 0 then
+      raise exception '% is already empty.', v_item.name;
+    else
+      raise exception 'Only % % of % left.', v_item.quantity, v_item.unit, v_item.name;
+    end if;
   end if;
 
-  -- Nothing was updated. Work out why so the user gets a helpful message.
-  select * into v_item from public.items where id = p_id;
-  if not found then
-    raise exception 'Item not found.';
-  elsif v_item.quantity = 0 then
-    raise exception '% is already empty.', v_item.name;
-  else
-    raise exception 'Only % % of % left.', v_item.quantity, v_item.unit, v_item.name;
-  end if;
+  insert into public.actions (item_id, kind, amount)
+  values (p_id, 'take', p_amount)
+  returning undo_token into v_token;
+  return v_token;
 end;
 $$;
 
--- empty_item(3) -> the updated item (quantity 0)
+-- empty_item(3) -> undo code, or null if it was already empty
 --
 -- If it's already empty this changes nothing, so emptied_at keeps the time
 -- the item first ran out.
 create or replace function public.empty_item(p_id bigint)
-returns public.items
+returns uuid
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_item public.items;
+  v_item  public.items;
+  v_token uuid;
 begin
-  update public.items
-  set quantity = 0, updated_at = now(), emptied_at = now()
-  where id = p_id and quantity > 0;
-
-  select * into v_item from public.items where id = p_id;
+  -- `for update` locks the row so nobody can take some between reading the
+  -- quantity here and setting it to 0 below. Undo needs the exact amount.
+  select * into v_item from public.items where id = p_id for update;
   if not found then
     raise exception 'Item not found.';
+  elsif v_item.quantity = 0 then
+    return null; -- nothing changed, so nothing to undo
   end if;
-  return v_item;
+
+  update public.items
+  set quantity = 0, updated_at = now(), emptied_at = now()
+  where id = p_id;
+
+  insert into public.actions (item_id, kind, amount)
+  values (p_id, 'empty', v_item.quantity)
+  returning undo_token into v_token;
+  return v_token;
+end;
+$$;
+
+-- undo_action('<undo code>') -> nothing
+--
+-- Reverses one change, as long as it's recent and doesn't clash with what
+-- other people did since:
+--   * Undo add:   removes the item, but only if nobody has taken from or
+--                 emptied it since. Otherwise use Take or Empty.
+--   * Undo stack: takes back the amount added, if that much is still there.
+--   * Undo take:  adds the amount back, so other people's takes still
+--                 count. Refused if someone marked it empty since, because
+--                 they're saying there's none left.
+--   * Undo empty: puts back the amount that was there.
+--
+-- The 15-minute limit is a backstop; the app only offers Undo for 8 seconds
+-- (UNDO_POPUP_MS in public/app.js).
+create or replace function public.undo_action(p_token uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_action public.actions;
+  v_item   public.items;
+begin
+  -- `for update` makes a double-tapped Undo wait for the first, so it can't
+  -- undo the same change twice.
+  select * into v_action from public.actions where undo_token = p_token for update;
+  if not found then
+    raise exception 'Nothing to undo.';
+  elsif v_action.undone_at is not null then
+    raise exception 'That was already undone.';
+  elsif v_action.created_at < now() - interval '15 minutes' then
+    raise exception 'Too late to undo: that was more than 15 minutes ago.';
+  end if;
+
+  select * into v_item from public.items where id = v_action.item_id for update;
+
+  if v_action.kind = 'add' then
+    if exists (
+      select 1 from public.actions
+      where item_id = v_item.id and id <> v_action.id and undone_at is null
+    ) then
+      raise exception '% has changed since it was added, so this can''t be undone. Use Take or Empty instead.', v_item.name;
+    end if;
+    -- Also deletes its row in `actions` (on delete cascade).
+    delete from public.items where id = v_item.id;
+    return;
+  end if;
+
+  if v_action.kind = 'stack' then
+    if v_item.quantity < v_action.amount then
+      raise exception 'Some of the % has been taken since, so this can''t be undone. Use Take instead.', v_item.name;
+    end if;
+    update public.items
+    set quantity   = quantity - v_action.amount,
+        updated_at = now(),
+        emptied_at = case when quantity = v_action.amount then now() else emptied_at end
+    where id = v_item.id;
+    update public.actions set undone_at = now() where id = v_action.id;
+    return;
+  end if;
+
+  if v_action.kind = 'take' and exists (
+    select 1 from public.actions
+    where item_id = v_item.id and kind = 'empty' and id > v_action.id and undone_at is null
+  ) then
+    raise exception 'Someone marked % as empty since then, so this can''t be undone.', v_item.name;
+  end if;
+
+  -- Undo take or empty: put the amount back.
+  update public.items
+  set quantity = quantity + v_action.amount, updated_at = now(), emptied_at = null
+  where id = v_item.id;
+
+  update public.actions set undone_at = now() where id = v_action.id;
 end;
 $$;
 
@@ -234,6 +369,8 @@ revoke execute on function public.empty_item(bigint)                    from pub
 grant  execute on function public.add_item(text, integer, text, text[]) to anon, authenticated;
 grant  execute on function public.take_item(bigint, integer)            to anon, authenticated;
 grant  execute on function public.empty_item(bigint)                    to anon, authenticated;
+revoke execute on function public.undo_action(uuid)                     from public;
+grant  execute on function public.undo_action(uuid)                     to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Live updates
