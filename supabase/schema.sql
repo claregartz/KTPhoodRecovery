@@ -41,15 +41,30 @@ alter table public.items add column if not exists allergens text[];
 
 alter table public.items drop constraint if exists items_allergens_check;
 
--- The first version of the list had 'wheat' (now 'gluten') and 'shellfish'
--- (removed). Update any items saved with those so they fit the new list.
+-- The first version of the list had 'wheat' (now 'gluten'). Update any
+-- items saved with it so they fit the new list.
 update public.items
-set allergens = array_remove(array_replace(allergens, 'wheat', 'gluten'), 'shellfish')
-where allergens && array['wheat', 'shellfish'];
+set allergens = array_replace(allergens, 'wheat', 'gluten')
+where 'wheat' = any(allergens);
 
 alter table public.items add constraint items_allergens_check
   check (allergens <@ array['peanuts', 'tree_nuts', 'milk', 'eggs', 'gluten',
-                            'soy', 'fish', 'sesame']::text[]);
+                            'soy', 'fish', 'shellfish', 'sesame']::text[]);
+
+-- Vegan or vegetarian, as reported by whoever added the item. Optional:
+--   null         -> not marked (also every item added before this existed)
+--   'vegetarian' -> no meat or fish
+--   'vegan'      -> no animal products at all
+-- An item can't be vegan and contain milk, eggs, fish or shellfish, or be
+-- vegetarian and contain fish or shellfish.
+alter table public.items add column if not exists diet text;
+
+alter table public.items drop constraint if exists items_diet_check;
+alter table public.items add constraint items_diet_check check (
+  diet in ('vegan', 'vegetarian')
+  and not (diet = 'vegan' and allergens && array['milk', 'eggs', 'fish', 'shellfish'])
+  and not (diet = 'vegetarian' and allergens && array['fish', 'shellfish'])
+);
 
 -- Every add / take / empty is recorded here so it can be undone.
 --
@@ -109,26 +124,29 @@ create policy "Anyone can view items"
 -- add_items.)
 drop function if exists public.add_item(text, integer, text);
 drop function if exists public.add_item(text, integer, text, text[]);
+drop function if exists public.add_item(text, integer, text, text[], text);
 drop function if exists public.take_item(bigint, integer);
 drop function if exists public.empty_item(bigint);
 
--- add_item('Lasagna', 10, 'servings', '{milk,gluten}')
+-- add_item('Lasagna', 10, 'servings', '{milk,gluten}', 'vegetarian')
 --   -> { "undo_token": <undo code>, "item": <the new or stacked item> }
 --
 -- p_allergens follows the same rules as the column: null = not sure,
 -- '{}' = none of these. It's optional so older copies of the app that don't
--- send it still work (their items count as "not sure").
+-- send it still work (their items count as "not sure"). p_diet is 'vegan',
+-- 'vegetarian', or null (not marked), and is optional for the same reason.
 --
 -- Food stacks: if the fridge already has the same food (name ignoring
--- capitals and extra spaces) in the same unit with the same allergen answer,
--- the quantity is added to that item instead of making a second one. So
--- adding 3 pizza to 5 pizza gives one "Pizza: 8". If the allergens differ,
--- they stay separate, so nobody's allergy info gets mixed up. The app can
+-- capitals and extra spaces) in the same unit with the same allergen and
+-- vegan/vegetarian answers, the quantity is added to that item instead of making a second one. So
+-- adding 3 pizza to 5 pizza gives one "Pizza: 8". If the answers differ,
+-- they stay separate, so nobody's allergy or diet info gets mixed up. The app can
 -- tell a merge happened because the returned quantity is more than it sent.
 -- Undoing a stack takes back just the amount added, not the whole item.
 
 create or replace function public.add_item(
-  p_name text, p_quantity integer, p_unit text, p_allergens text[] default null
+  p_name text, p_quantity integer, p_unit text, p_allergens text[] default null,
+  p_diet text default null
 )
 returns jsonb
 language plpgsql
@@ -140,7 +158,7 @@ declare
   -- "  Pizza " and "pizza" count as the same food
   v_match_name text := lower(regexp_replace(btrim(coalesce(p_name, '')), '\s+', ' ', 'g'));
   v_all_allergens text[] := array['peanuts', 'tree_nuts', 'milk', 'eggs', 'gluten',
-                                  'soy', 'fish', 'sesame'];
+                                  'soy', 'fish', 'shellfish', 'sesame'];
   v_allergens text[];
   v_item public.items;
   v_kind text := 'add'; -- 'stack' if it was added to an existing item
@@ -158,6 +176,13 @@ begin
   if array_position(p_allergens, null) is not null
      or not (p_allergens <@ v_all_allergens) then
     raise exception 'Allergens must be from: %.', array_to_string(v_all_allergens, ', ');
+  end if;
+  if p_diet not in ('vegan', 'vegetarian') then
+    raise exception 'Diet must be vegan, vegetarian, or left blank.';
+  elsif p_diet = 'vegan' and p_allergens && array['milk', 'eggs', 'fish', 'shellfish'] then
+    raise exception 'Vegan food can''t contain milk, eggs, fish, or shellfish.';
+  elsif p_diet = 'vegetarian' and p_allergens && array['fish', 'shellfish'] then
+    raise exception 'Vegetarian food can''t contain fish or shellfish.';
   end if;
 
   -- Drop duplicates and put them in the standard order, so the same answer
@@ -183,6 +208,7 @@ begin
     where quantity > 0
       and unit = p_unit
       and allergens is not distinct from v_allergens
+      and diet is not distinct from p_diet
       and lower(regexp_replace(name, '\s+', ' ', 'g')) = v_match_name
     order by updated_at desc
     limit 1
@@ -192,8 +218,8 @@ begin
   if found then
     v_kind := 'stack';
   else
-    insert into public.items (name, quantity, unit, allergens)
-    values (v_name, p_quantity, p_unit, v_allergens)
+    insert into public.items (name, quantity, unit, allergens, diet)
+    values (v_name, p_quantity, p_unit, v_allergens, p_diet)
     returning * into v_item;
   end if;
 
@@ -363,14 +389,14 @@ end;
 $$;
 
 -- Postgres lets everyone run new functions by default; limit it to the app.
-revoke execute on function public.add_item(text, integer, text, text[]) from public;
-revoke execute on function public.take_item(bigint, integer)            from public;
-revoke execute on function public.empty_item(bigint)                    from public;
-grant  execute on function public.add_item(text, integer, text, text[]) to anon, authenticated;
-grant  execute on function public.take_item(bigint, integer)            to anon, authenticated;
-grant  execute on function public.empty_item(bigint)                    to anon, authenticated;
-revoke execute on function public.undo_action(uuid)                     from public;
-grant  execute on function public.undo_action(uuid)                     to anon, authenticated;
+revoke execute on function public.add_item(text, integer, text, text[], text) from public;
+revoke execute on function public.take_item(bigint, integer)                  from public;
+revoke execute on function public.empty_item(bigint)                          from public;
+revoke execute on function public.undo_action(uuid)                           from public;
+grant  execute on function public.add_item(text, integer, text, text[], text) to anon, authenticated;
+grant  execute on function public.take_item(bigint, integer)                  to anon, authenticated;
+grant  execute on function public.empty_item(bigint)                          to anon, authenticated;
+grant  execute on function public.undo_action(uuid)                           to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Live updates

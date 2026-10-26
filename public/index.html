@@ -44,10 +44,15 @@
       <!-- Inside the fridge: the items, on shelves. `inert` means it can't
            be tapped or reached with the keyboard while the door is shut. -->
       <div class="fridge-interior" id="fridge-interior" inert>
-        <button type="button" class="close-fridge-btn" id="close-fridge-btn">Close ✕</button>
+        <!-- Its own row, so it reads as "close the fridge" and not as
+             dismissing the allergen note below it -->
+        <div class="fridge-top">
+          <button type="button" class="close-fridge-btn" id="close-fridge-btn">Close the fridge</button>
+        </div>
 
-        <p class="allergen-note">Allergen info comes from whoever added the food and may be wrong.
-          With a serious allergy, only take what you're sure about.</p>
+        <p class="allergen-note"><span aria-hidden="true">ⓘ</span>
+          Allergen and vegan/vegetarian info comes from whoever added the food
+          and may be wrong. With a serious allergy, only take what you're sure about.</p>
 
         <!-- app.js fills this list with one <li> per item -->
         <ul class="item-list" id="item-list" aria-live="polite"></ul>
@@ -129,6 +134,14 @@
         <legend>Does it contain any of these?</legend>
         <p class="hint">Not sure? Pick <strong>Not sure</strong>. A wrong guess is worse than no answer.</p>
         <div class="allergen-options" id="add-allergens"></div>
+      </fieldset>
+
+      <!-- Vegan / vegetarian. Optional: leave both unticked if it's neither or
+           you don't know. app.js makes the two cancel each other out. -->
+      <fieldset class="allergen-picker">
+        <legend>Is it vegan or vegetarian? <span class="optional">(optional)</span></legend>
+        <p class="hint">Leave both blank if it's neither or you're not sure.</p>
+        <div class="allergen-options" id="add-diet"></div>
       </fieldset>
 
       <p class="form-error" id="add-error" role="alert" hidden></p>

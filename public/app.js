@@ -29,6 +29,7 @@ const ALLERGENS = [
   { key: 'gluten',    label: 'Gluten',    icon: '🌾' },
   { key: 'soy',       label: 'Soy',       icon: '🫘' },
   { key: 'fish',      label: 'Fish',      icon: '🐟' },
+  { key: 'shellfish', label: 'Shellfish', icon: '🦐' },
   { key: 'sesame',    label: 'Sesame',    icon: null },
 ];
 
@@ -43,6 +44,14 @@ const COMMON_FOODS = [
   'Noodles', 'Oranges', 'Pasta', 'Pastries', 'Pizza', 'Quesadillas', 'Rice',
   'Rice and beans', 'Salad', 'Sandwiches', 'Soup', 'Stir fry', 'Sushi',
   'Tacos', 'Veggie tray', 'Wraps', 'Yogurt',
+];
+
+// The optional vegan / vegetarian answer. `key` is what's stored in the
+// database (null = not marked) and must match supabase/schema.sql.
+// `rulesOut` lists allergens that can't be in it, also checked there.
+const DIETS = [
+  { key: 'vegan',      label: 'Vegan',      rulesOut: ['milk', 'eggs', 'fish', 'shellfish'] },
+  { key: 'vegetarian', label: 'Vegetarian', rulesOut: ['fish', 'shellfish'] },
 ];
 
 // The two extra answers in the Add form. Each one cancels out every other
@@ -88,6 +97,7 @@ const els = {
   addQuantity: document.getElementById('add-quantity'),
   addUnit: document.getElementById('add-unit'),
   addAllergens: document.getElementById('add-allergens'),
+  addDiet: document.getElementById('add-diet'),
   addError: document.getElementById('add-error'),
   cancelAddBtn: document.getElementById('cancel-add-btn'),
   fridge: document.getElementById('fridge'),
@@ -314,17 +324,26 @@ function renderItem(item) {
 
 // One of: "Contains 🥛 Milk 🌾 Gluten", "None of the listed allergens", or
 // "Allergens unknown" (null, which includes items added before allergens
-// existed).
+// existed). A "🌱 Vegan" or "🌱 Vegetarian" chip comes first if marked.
 function renderAllergens(item) {
+  const diet = DIETS.find((d) => d.key === item.diet);
+  const dietChip = diet
+    ? el('span', { className: 'allergen-chip diet-chip' },
+        el('span', { className: 'allergen-icon', ariaHidden: 'true' }, '🌱'), diet.label)
+    : null;
   if (item.allergens == null) {
-    return el('p', { className: 'allergens allergens-unknown' },
-      '⚠ Allergens unknown, ask or skip if you have allergies');
+    return el('div', {},
+      dietChip ? el('p', { className: 'allergens' }, dietChip) : null,
+      el('p', { className: 'allergens allergens-unknown' },
+        '⚠ Allergens unknown, ask or skip if you have allergies'));
   }
   if (item.allergens.length === 0) {
-    return el('p', { className: 'allergens allergens-none' },
-      '✓ None of the listed allergens');
+    return el('div', {},
+      dietChip ? el('p', { className: 'allergens' }, dietChip) : null,
+      el('p', { className: 'allergens allergens-none' }, '✓ None of the listed allergens'));
   }
   return el('p', { className: 'allergens' },
+    dietChip,
     el('span', { className: 'allergens-label' }, 'Contains'),
     ...item.allergens.map((key) => {
       // Fall back to the raw key if the database knows an allergen this
@@ -450,6 +469,7 @@ els.addForm.addEventListener('submit', async (event) => {
     quantity: Number(els.addQuantity.value),
     unit: els.addUnit.value,
     allergens: readAllergens(),
+    diet: els.addDiet.querySelector('input:checked')?.value ?? null,
   };
 
   // Quick checks for instant feedback. The database checks again, because
@@ -461,6 +481,12 @@ els.addForm.addEventListener('submit', async (event) => {
   if (item.allergens === undefined) {
     return showAddError('Please answer the allergen question. "Not sure" is fine.');
   }
+  const diet = DIETS.find((d) => d.key === item.diet);
+  const clash = diet && ALLERGENS.filter((a) => diet.rulesOut.includes(a.key) && item.allergens?.includes(a.key));
+  if (clash?.length) {
+    return showAddError(`${diet.label} food can't contain ${clash.map((a) => a.label.toLowerCase()).join(' or ')}. ` +
+      'Fix the allergens or untick it.');
+  }
 
   submitBtn.disabled = true; // prevent double-taps from adding it twice
   try {
@@ -469,6 +495,7 @@ els.addForm.addEventListener('submit', async (event) => {
       p_quantity: item.quantity,
       p_unit: item.unit,
       p_allergens: item.allergens,
+      p_diet: item.diet,
     });
     // The database stacks it onto a matching item when there is one (see
     // add_item in supabase/schema.sql). Then it has more than we added.
@@ -500,7 +527,22 @@ function renderAllergenOptions() {
     option(ALLERGEN_NONE, 'None of these', null),
     option(ALLERGEN_UNKNOWN, 'Not sure', null)
   );
+  els.addDiet.replaceChildren(...DIETS.map((d) =>
+    el('label', { className: 'allergen-option' },
+      el('input', { type: 'checkbox', name: 'diet', value: d.key }),
+      d.label
+    )
+  ));
 }
+
+// Vegan and vegetarian are one answer, so ticking one clears the other.
+// (Checkboxes rather than radio buttons, so both can be left blank again.)
+els.addDiet.addEventListener('change', (event) => {
+  if (!event.target.checked) return;
+  for (const other of els.addDiet.querySelectorAll('input')) {
+    if (other !== event.target) other.checked = false;
+  }
+});
 
 // "None of these" and "Not sure" can't be combined with anything else, so
 // ticking one clears the rest, and ticking an allergen clears both of them.
@@ -569,7 +611,8 @@ function updateStackHint() {
   els.stackHint.hidden = !match;
   if (match) {
     els.stackHint.textContent = `${match.name} is already in the fridge ` +
-      `(${amountText(match.quantity, match.unit)}). If the allergens match, ` +
+      `(${amountText(match.quantity, match.unit)}). If the allergens and ` +
+      'vegan/vegetarian answer match, ' +
       'this adds to it instead of making a new item.';
   }
 }

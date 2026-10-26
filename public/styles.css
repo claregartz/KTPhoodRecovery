@@ -172,7 +172,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .fridge-interior {
   height: var(--fridge-height);
   overflow: hidden;
-  padding: 52px 14px 18px;
+  padding: 12px 14px 18px;
   border-radius: 19px;
   background:
     radial-gradient(120% 40% at 50% 0%, #fffbe6 0%, transparent 70%),
@@ -185,10 +185,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   min-height: var(--fridge-height);
 }
 
+.fridge-top { display: flex; justify-content: flex-end; margin-bottom: 10px; }
 .close-fridge-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   min-height: 36px;
   padding: 0 14px;
   border: 1.5px solid var(--border);
@@ -363,6 +361,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 }
 .allergens-unknown { background: var(--amber-tint); color: var(--amber); }
 .allergens-none { background: var(--green-tint); color: var(--green-strong); }
+.allergen-chip.diet-chip {
+  border-color: var(--green-strong);
+  background: var(--green-tint);
+  color: var(--green-strong);
+}
 
 .allergen-icon { font-size: 1.05em; line-height: 1; }
 /* Sesame has no emoji, so draw a little seed */
@@ -377,9 +380,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 }
 
 /* Reminder at the top of the fridge that allergen info isn't guaranteed.
-   Leaves room on the right for the Close button. */
+   A full-width note of its own, below the Close button's row. */
 .allergen-note {
-  margin: -40px 84px 16px 0;
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.7);
   font-size: 0.8rem;
   line-height: 1.35;
   color: var(--muted);
@@ -544,6 +550,7 @@ input:focus, select:focus { outline: none; border-color: var(--green); }
    hidden visually. */
 .allergen-picker { margin: 12px 0 0; padding: 0; border: none; }
 .allergen-picker legend { padding: 0; font-size: 0.9rem; color: var(--text); }
+.allergen-picker legend .optional { color: var(--muted); }
 .hint { margin: 2px 0 8px; font-size: 0.8rem; color: var(--muted); }
 .allergen-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .allergen-option {
