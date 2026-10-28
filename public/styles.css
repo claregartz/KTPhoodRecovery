@@ -583,6 +583,91 @@ input:focus, select:focus { outline: none; border-color: var(--green); }
 .allergen-option:has(input:checked)::before { content: "✓"; }
 .allergen-option:has(input:focus-visible) { outline: 3px solid var(--green); outline-offset: 2px; }
 
+/* ---- Feedback ---- */
+/* Small pill in the header's top-right corner */
+.feedback-btn {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: 12px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--green-strong);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.feedback-btn:focus-visible, .link-btn:focus-visible, .dialog-close:focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
+}
+
+/* A button that looks like a link (it opens the form, it doesn't go anywhere) */
+.link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--green-strong);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The ✕ in the dialog's top-right corner */
+dialog { position: relative; }
+.dialog-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+#feedback-dialog h2 { padding-right: 36px; }
+#feedback-dialog .hint { margin-top: -6px; }
+#feedback-dialog .allergen-picker .hint { margin-top: 2px; }
+.optional { color: var(--muted); }
+
+textarea {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 16px; /* stops iPhones zooming in */
+  line-height: 1.4;
+  resize: vertical;
+}
+textarea:focus { outline: none; border-color: var(--green); }
+.char-count { margin: 4px 0 0; text-align: right; }
+.char-count.over { color: var(--red); }
+
+/* Five equal pills in a row */
+.rating-options { flex-wrap: nowrap; }
+.rating-options .allergen-option { flex: 1 1 0; justify-content: center; padding: 0; }
+.rating-options .allergen-option:has(input:checked)::before { content: none; }
+
+/* Spam trap: moved off screen rather than display:none, which some bots skip */
+.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.feedback-thanks { text-align: center; padding: 8px 0 0; }
+.feedback-thanks .bear-badge { width: 120px; height: 120px; }
+.feedback-thanks h2 { padding: 0 24px; font-size: 1.3rem; outline: none; }
+.feedback-thanks p { margin: 0 0 20px; }
+
+/* Tall forms scroll inside the dialog on short phone screens */
+#feedback-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
+
 /* ---- Wider screens (tablets / laptops) ---- */
 @media (min-width: 700px) {
   .logo { height: 80px; }

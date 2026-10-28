@@ -21,6 +21,9 @@
 </head>
 <body>
   <header class="topbar">
+    <!-- Top-right corner, out of the way of the fridge and the bottom bar -->
+    <button type="button" class="feedback-btn" id="open-feedback-btn"
+            aria-haspopup="dialog">Feedback</button>
     <a class="logo-link" href="https://www.cornellfoodrecoverynetwork.com/" target="_blank" rel="noopener">
       <img class="logo" src="images/frn-logo.jpg" alt="Food Recovery Network" width="450" height="327">
     </a>
@@ -82,9 +85,8 @@
     </section>
 
     <footer class="site-footer">
-      <p>A project of the
-        <a href="https://www.cornellfoodrecoverynetwork.com/" target="_blank" rel="noopener">Cornell Food Recovery Network</a>.
-      </p>
+      <p><button type="button" class="link-btn" id="footer-feedback-btn"
+                 aria-haspopup="dialog">Send us feedback</button></p>
     </footer>
   </main>
 
@@ -151,6 +153,65 @@
         <button type="submit" class="btn btn-primary">Add to fridge</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- The "Feedback" form. Only opens when someone taps Feedback. What
+       they typed is kept if sending fails or they close it, and cleared
+       once it's sent. -->
+  <dialog id="feedback-dialog" aria-labelledby="feedback-title">
+    <button type="button" class="dialog-close" id="close-feedback-btn"
+            aria-label="Close feedback form">✕</button>
+
+    <form id="feedback-form" novalidate>
+      <h2 id="feedback-title">Send feedback</h2>
+      <p class="hint">Tell us what's working, what's broken, or what's missing.</p>
+
+      <label for="feedback-category">What's it about?</label>
+      <!-- app.js fills in the choices -->
+      <select id="feedback-category" name="category" required
+              aria-describedby="feedback-error"></select>
+
+      <!-- Radio buttons styled as pills, like the allergen choices -->
+      <fieldset class="allergen-picker">
+        <legend>How useful has the Freedge been? <span class="optional">(optional)</span></legend>
+        <p class="hint">1 = not useful, 5 = very useful</p>
+        <div class="allergen-options rating-options" id="feedback-rating"></div>
+      </fieldset>
+
+      <label for="feedback-message">Message <span class="optional">(optional if you gave a rating)</span></label>
+      <textarea id="feedback-message" name="message" rows="4" maxlength="2000"
+                placeholder="What happened, or what would make it better?"
+                aria-describedby="feedback-message-count"></textarea>
+      <p class="hint char-count" id="feedback-message-count" aria-live="polite"></p>
+
+      <label for="feedback-email">Email <span class="optional">(optional, only if you'd like a reply)</span></label>
+      <input id="feedback-email" name="email" type="email" maxlength="254"
+             autocomplete="email" inputmode="email" placeholder="netid@cornell.edu">
+
+      <!-- Spam trap: hidden from people, but bots that fill in every field
+           fill this in too, and then app.js quietly doesn't send it. -->
+      <div class="trap" aria-hidden="true">
+        <label for="feedback-website">Website</label>
+        <input id="feedback-website" name="website" type="text" tabindex="-1" autocomplete="off">
+      </div>
+
+      <p class="form-error" id="feedback-error" role="alert" hidden></p>
+
+      <div class="row actions">
+        <button type="button" class="btn" id="cancel-feedback-btn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="send-feedback-btn">Send</button>
+      </div>
+    </form>
+
+    <!-- Shown instead of the form once it's sent -->
+    <div class="feedback-thanks" id="feedback-thanks" hidden>
+      <div class="bear-badge">
+        <img src="images/frn-bear.png" alt="" width="560" height="560">
+      </div>
+      <h2 tabindex="-1" id="feedback-thanks-title">Thanks for helping us improve the Freedge!</h2>
+      <p id="feedback-thanks-note"></p>
+      <button type="button" class="btn btn-primary btn-block" id="done-feedback-btn">Done</button>
+    </div>
   </dialog>
 
   <!-- Supabase's JavaScript library, then our keys, then our code -->
