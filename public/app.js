@@ -54,6 +54,18 @@ const DIETS = [
   { key: 'vegetarian', label: 'Vegetarian', icon: '🥦', rulesOut: ['fish', 'shellfish'] },
 ];
 
+// Feedback form choices. `key` is what's stored in the database and must
+// match the list in supabase/schema.sql.
+const FEEDBACK_CATEGORIES = [
+  { key: 'general',      label: 'General feedback' },
+  { key: 'wrong_info',   label: 'Incorrect or outdated event' },
+  { key: 'missing_food', label: 'Missing event or free food opportunity' },
+  { key: 'bug',          label: 'Bug or technical issue' },
+  { key: 'idea',         label: 'Feature suggestion' },
+];
+// Also enforced in supabase/schema.sql.
+const FEEDBACK_MESSAGE_MAX = 2000;
+
 // The two extra answers in the Add form. Each one cancels out every other
 // choice. In the database "none" is stored as an empty list and "not sure"
 // as null.
@@ -109,6 +121,19 @@ const els = {
   undoToast: document.getElementById('undo-toast'),
   undoMessage: document.getElementById('undo-message'),
   undoBtn: document.getElementById('undo-btn'),
+  feedbackDialog: document.getElementById('feedback-dialog'),
+  feedbackForm: document.getElementById('feedback-form'),
+  feedbackCategory: document.getElementById('feedback-category'),
+  feedbackRating: document.getElementById('feedback-rating'),
+  feedbackMessage: document.getElementById('feedback-message'),
+  feedbackCount: document.getElementById('feedback-message-count'),
+  feedbackEmail: document.getElementById('feedback-email'),
+  feedbackTrap: document.getElementById('feedback-website'),
+  feedbackError: document.getElementById('feedback-error'),
+  sendFeedbackBtn: document.getElementById('send-feedback-btn'),
+  feedbackThanks: document.getElementById('feedback-thanks'),
+  feedbackThanksTitle: document.getElementById('feedback-thanks-title'),
+  feedbackThanksNote: document.getElementById('feedback-thanks-note'),
 };
 
 // ---------------------------------------------------------------------------
@@ -627,6 +652,152 @@ function showAddError(message) {
 }
 
 // ---------------------------------------------------------------------------
+// Feedback dialog
+// ---------------------------------------------------------------------------
+// Sends to submit_feedback in supabase/schema.sql, which checks everything
+// again and limits how often one person can send. Nothing typed here is
+// ever logged.
+
+function openFeedback() {
+  // After a successful send, start fresh. Otherwise keep what they typed
+  // last time (e.g. they closed it by accident, or sending failed).
+  if (!els.feedbackThanks.hidden) {
+    els.feedbackForm.reset();
+    chosenRating = null;
+    els.feedbackThanks.hidden = true;
+    els.feedbackForm.hidden = false;
+  }
+  els.feedbackError.hidden = true;
+  updateFeedbackCount();
+  els.feedbackDialog.showModal();
+  els.feedbackCategory.focus();
+}
+
+function closeFeedback() {
+  els.feedbackDialog.close();
+}
+
+function renderFeedbackOptions() {
+  els.feedbackCategory.replaceChildren(
+    new Option('Choose one…', ''),
+    ...FEEDBACK_CATEGORIES.map((c) => new Option(c.label, c.key))
+  );
+  els.feedbackRating.replaceChildren(...[1, 2, 3, 4, 5].map((n) =>
+    el('label', { className: 'allergen-option' },
+      el('input', { type: 'radio', name: 'rating', value: n, ariaLabel: `${n} out of 5` }),
+      String(n)
+    )
+  ));
+}
+
+// The rating is optional, so tapping the chosen number again un-chooses it.
+// (Radio buttons can't normally be unticked.)
+let chosenRating = null;
+els.feedbackRating.addEventListener('click', (event) => {
+  const box = event.target;
+  if (box.tagName !== 'INPUT') return; // the label's click comes through here too
+  if (box.value === chosenRating) {
+    box.checked = false;
+    chosenRating = null;
+  } else {
+    chosenRating = box.value;
+  }
+});
+
+// "120 / 2000" under the message box, once they start typing.
+function updateFeedbackCount() {
+  const length = els.feedbackMessage.value.length;
+  els.feedbackCount.textContent = length ? `${length} / ${FEEDBACK_MESSAGE_MAX}` : '';
+  els.feedbackCount.classList.toggle('over', length > FEEDBACK_MESSAGE_MAX);
+}
+
+function showFeedbackError(message) {
+  els.feedbackError.textContent = message;
+  els.feedbackError.hidden = false;
+}
+
+function showFeedbackThanks(withEmail) {
+  els.feedbackForm.hidden = true;
+  els.feedbackThanks.hidden = false;
+  els.feedbackThanksNote.textContent = withEmail
+    ? 'If we have questions, we\'ll email you.'
+    : 'Your feedback was sent.';
+  els.feedbackThanksTitle.focus();
+}
+
+els.feedbackForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (els.sendFeedbackBtn.disabled) return; // already sending
+  els.feedbackError.hidden = true;
+
+  const rating = els.feedbackRating.querySelector('input:checked')?.value;
+  const feedback = {
+    p_category: els.feedbackCategory.value,
+    p_rating: rating ? Number(rating) : null,
+    p_message: els.feedbackMessage.value.trim() || null,
+    p_email: els.feedbackEmail.value.trim() || null,
+  };
+
+  // Quick checks for instant feedback. The database checks again.
+  if (!feedback.p_category) {
+    els.feedbackCategory.focus();
+    return showFeedbackError('Please choose what your feedback is about.');
+  }
+  if (feedback.p_message?.length > FEEDBACK_MESSAGE_MAX) {
+    els.feedbackMessage.focus();
+    return showFeedbackError(`Please keep your message to ${FEEDBACK_MESSAGE_MAX} characters or fewer.`);
+  }
+  if (!feedback.p_message && !feedback.p_rating) {
+    els.feedbackMessage.focus();
+    return showFeedbackError('Please pick a rating or write a message.');
+  }
+  if (feedback.p_email && !els.feedbackEmail.checkValidity()) {
+    els.feedbackEmail.focus();
+    return showFeedbackError('That email address doesn\'t look right. You can also leave it blank.');
+  }
+
+  // A bot filled in the hidden field. Act like it worked, but don't send.
+  if (els.feedbackTrap.value) return showFeedbackThanks(false);
+
+  els.sendFeedbackBtn.disabled = true; // prevent double-taps sending it twice
+  els.sendFeedbackBtn.textContent = 'Sending…';
+  try {
+    const { error } = await db.rpc('submit_feedback', feedback);
+    if (error) {
+      // P0001 is a message from submit_feedback itself ("Please choose a
+      // category."), written to be shown as-is. Anything else is a network
+      // or server problem.
+      showFeedbackError(error.code === 'P0001'
+        ? error.message
+        : 'Couldn\'t send your feedback. Check your connection and try again. What you typed is still here.');
+      return;
+    }
+    showFeedbackThanks(Boolean(feedback.p_email));
+  } catch {
+    showFeedbackError('Couldn\'t send your feedback. Check your connection and try again. What you typed is still here.');
+  } finally {
+    els.sendFeedbackBtn.disabled = false;
+    els.sendFeedbackBtn.textContent = 'Send';
+  }
+});
+
+els.feedbackMessage.addEventListener('input', updateFeedbackCount);
+document.getElementById('open-feedback-btn').addEventListener('click', openFeedback);
+document.getElementById('footer-feedback-btn').addEventListener('click', openFeedback);
+document.getElementById('close-feedback-btn').addEventListener('click', closeFeedback);
+document.getElementById('cancel-feedback-btn').addEventListener('click', closeFeedback);
+document.getElementById('done-feedback-btn').addEventListener('click', closeFeedback);
+// Tapping the dark area around the dialog closes it too. (Clicks on the
+// dialog's own padding also land on the dialog, so check where it was.)
+els.feedbackDialog.addEventListener('click', (event) => {
+  if (event.target !== els.feedbackDialog) return;
+  const box = els.feedbackDialog.getBoundingClientRect();
+  const inside = event.clientX >= box.left && event.clientX <= box.right &&
+    event.clientY >= box.top && event.clientY <= box.bottom;
+  if (!inside) closeFeedback();
+});
+
+// ---------------------------------------------------------------------------
 // Start up
 // ---------------------------------------------------------------------------
 
@@ -663,4 +834,5 @@ els.addDialog.addEventListener('close', () => {
 
 els.addUnit.replaceChildren(...UNITS.map((unit) => new Option(unit, unit)));
 renderAllergenOptions();
+renderFeedbackOptions();
 loadItems();

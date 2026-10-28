@@ -63,6 +63,11 @@ at a glance and lets anyone keep that answer accurate.
 - **Empty items disappear:** when the quantity reaches 0 (by taking or by
   marking empty), the item is hidden from the list. It stays in the database
   with an `emptied_at` timestamp so history isn't lost.
+- **Feedback:** a small **Feedback** button in the top-right corner (and a
+  link in the footer) opens a short form: a category, an optional 1–5
+  rating, an optional message, and an optional email for a reply. It needs a
+  rating or a message. Submissions are saved to the `feedback` table, which
+  only the team can read, in the Supabase dashboard.
 - **Shared and live:** everyone sees the same fridge. When anyone changes
   something, every open copy of the app updates within a second or two.
 
@@ -119,7 +124,7 @@ If it does, use your browser's mobile view instead (Chrome: right-click →
 Inspect → phone icon).
 
 **See or edit the data directly:** Supabase dashboard → **Table Editor →
-items**.
+items**. Feedback is under **Table Editor → feedback**.
 
 ## How it works (architecture)
 
@@ -134,9 +139,9 @@ items**.
 1. The browser loads `index.html`, `styles.css`, `config.js`, and `app.js`.
 2. `app.js` reads the list straight from the `items` table.
 3. To change anything, `app.js` calls a database function (`add_item`,
-   `take_item`, `empty_item`, `undo_action`). The function checks the
-   input, updates the table, and returns an undo code, or an error message
-   the app shows as-is.
+   `take_item`, `empty_item`, `undo_action`, `submit_feedback`). The
+   function checks the input, updates the table, and returns an undo code,
+   or an error message the app shows as-is.
 4. Supabase Realtime tells every open copy of the app that something
    changed, and each one reloads its list.
 
@@ -219,6 +224,27 @@ A log of every add, take, and empty, used for undo. The app can't read it.
 | `created_at` | timestamptz | When it happened |
 | `undone_at` | timestamptz or null | When it was undone |
 
+### Database table: `feedback`
+
+What people send with the Feedback button. The app can't read, change, or
+delete it, only add to it through `submit_feedback`. Read it in the
+Supabase dashboard (**Table Editor → feedback**).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | bigint, primary key | Auto-numbered |
+| `category` | text | `general`, `wrong_info`, `missing_food`, `bug`, or `idea` |
+| `rating` | integer or null | 1–5, "how useful has the Freedge been?" |
+| `message` | text or null | Up to 2000 characters |
+| `email` | text or null | Only if they want a reply. Stored lowercase |
+| `created_at` | timestamptz | When it was sent |
+
+Every row has a rating, a message, or both. There's no link to an item:
+feedback is about the app, and undo can delete items.
+
+A second table, `feedback_throttle`, keeps a scrambled (hashed) copy of the
+sender's IP address for an hour, only to limit spam (see `submit_feedback`).
+
 **To change the allergen list:** edit `ALLERGENS` in `public/app.js` and the
 two lists in `supabase/schema.sql` (the `items_allergens_check` constraint
 and `add_item`), then re-run the schema file.
@@ -245,6 +271,7 @@ message.
 | `add_item` | `p_name`, `p_quantity`, `p_unit`, `p_allergens` (optional, defaults to null = not sure), `p_diet` (optional, defaults to null = not marked) | Adds a new item, or adds to a matching one already in the fridge (see Food stacks) | Bad name, quantity, unit, allergen, or diet; diet that contradicts the allergens |
 | `take_item` | `p_id`, `p_amount` | Subtracts `p_amount` | Bad amount, more than is left, already empty, no such item |
 | `empty_item` | `p_id` | Sets quantity to 0. Returns `null` (nothing to undo) if already empty | No such item |
+| `submit_feedback` | `p_category`, `p_rating`, `p_message`, `p_email` (all but the category optional) | Saves feedback. Returns nothing. Limited to 5 per 10 minutes per IP address and 100 per hour in total | Bad category, rating, or email; no rating or message; message over 2000 characters; too many recently |
 | `undo_action` | `p_token` | Reverses that change: removes an added item, takes back a stacked amount, adds a take back, or restores an emptied amount | Older than 15 minutes, already undone, someone emptied it since (undo take), someone changed it since (undo add), not enough left (undo stack) |
 
 Reading the list doesn't need a function: the app selects from `items` where
@@ -283,6 +310,9 @@ Example item:
 - **Whole numbers only:** you can't record "half a tray".
 - **Not an iPhone app yet:** Capacitor + Xcode + TestFlight is the next step.
 - **No automated tests yet.**
+- **Feedback spam limits are basic:** a hidden "trap" field for bots and
+  per-IP and total rate limits. Someone determined could still send junk up
+  to those limits; it can be deleted in the dashboard.
 
 ---
 

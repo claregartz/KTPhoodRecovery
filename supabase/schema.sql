@@ -8,8 +8,9 @@
 -- every rule has to live here in the database:
 --   * Anyone can READ items (row level security policy below).
 --   * Nobody can insert/update/delete rows directly. All changes go through
---     the functions below (add_item, take_item, empty_item, undo_action),
---     which check their input first.
+--     the functions below (add_item, take_item, empty_item, undo_action,
+--     submit_feedback), which check their input first.
+--   * Nobody can read feedback from the app, only in the Supabase dashboard.
 
 -- ---------------------------------------------------------------------------
 -- Table
@@ -414,3 +415,123 @@ begin
   end if;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Feedback
+-- ---------------------------------------------------------------------------
+--
+-- The "Feedback" button in the app saves here. Like `actions`, the app can't
+-- read or write this table at all: it can only call submit_feedback below.
+-- Read submissions in the Supabase dashboard (Table Editor → feedback),
+-- which signs in as the owner and so can see everything.
+--
+-- There's no link to `items`: feedback is about the app as a whole, and
+-- items get deleted by undo, which would take their feedback with them.
+--
+-- To change the categories, change the list here, in submit_feedback below,
+-- AND `FEEDBACK_CATEGORIES` in public/app.js.
+create table if not exists public.feedback (
+  id          bigint      generated always as identity primary key,
+  category    text        not null,
+  rating      integer     check (rating between 1 and 5),
+  message     text        check (char_length(message) between 1 and 2000),
+  email       text        check (char_length(email) between 3 and 254
+                                 and email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+  created_at  timestamptz not null default now(),
+  -- A category on its own doesn't tell us anything
+  check (rating is not null or message is not null)
+);
+
+alter table public.feedback drop constraint if exists feedback_category_check;
+alter table public.feedback add constraint feedback_category_check
+  check (category in ('general', 'wrong_info', 'missing_food', 'bug', 'idea'));
+
+-- Recent submissions, used only to slow down spam (see submit_feedback).
+-- `requester` is a one-way scramble (hash) of the sender's IP address, not
+-- the address itself, and rows are deleted after an hour, so this doesn't
+-- keep a record of who sent what.
+create table if not exists public.feedback_throttle (
+  requester   text        not null,
+  created_at  timestamptz not null default now()
+);
+create index if not exists feedback_throttle_created_at_idx
+  on public.feedback_throttle (created_at);
+
+-- No policies, so with row level security on nobody but the owner can
+-- read or write these. Supabase also gives the app's roles full table
+-- permissions by default; take those away too, as a second lock.
+alter table public.feedback          enable row level security;
+alter table public.feedback_throttle enable row level security;
+revoke all on table public.feedback          from public, anon, authenticated;
+revoke all on table public.feedback_throttle from public, anon, authenticated;
+
+-- submit_feedback('bug', 4, 'The Take button…', 'netid@cornell.edu') -> nothing
+--
+-- Everything but the category is optional, but there has to be a rating or
+-- a message. Blank text counts as left out. Error messages never repeat
+-- what was typed.
+--
+-- Spam limits: 5 submissions per 10 minutes from one IP address, and 100
+-- per hour from everyone together (a backstop in case someone fakes their
+-- address, so the free database can't be filled up).
+create or replace function public.submit_feedback(
+  p_category text, p_rating integer default null, p_message text default null,
+  p_email text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_message text := nullif(btrim(coalesce(p_message, '')), '');
+  v_email text := nullif(lower(btrim(coalesce(p_email, ''))), '');
+  -- Supabase passes the request's headers in here. The first address in
+  -- x-forwarded-for is the sender's.
+  v_ip text := btrim(split_part(
+    coalesce(nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-forwarded-for', ''),
+    ',', 1));
+  v_requester text;
+begin
+  if p_category is null
+     or p_category not in ('general', 'wrong_info', 'missing_food', 'bug', 'idea') then
+    raise exception 'Please choose a category.';
+  end if;
+  if p_rating is not null and p_rating not between 1 and 5 then
+    raise exception 'Rating must be from 1 to 5.';
+  end if;
+  if char_length(v_message) > 2000 then
+    raise exception 'Message must be 2000 characters or fewer.';
+  end if;
+  if v_message is null and p_rating is null then
+    raise exception 'Please add a rating or a message.';
+  end if;
+  if v_email is not null and (char_length(v_email) > 254
+     or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$') then
+    raise exception 'That email address doesn''t look right. You can also leave it blank.';
+  end if;
+
+  v_requester := encode(pg_catalog.sha256(convert_to('freedge-feedback:' || v_ip, 'UTF8')), 'hex');
+
+  -- Make simultaneous submissions take turns, so the counts below are right.
+  perform pg_advisory_xact_lock(hashtext('submit_feedback'));
+
+  delete from public.feedback_throttle where created_at < now() - interval '1 hour';
+
+  if (select count(*) from public.feedback_throttle
+      where requester = v_requester
+        and created_at > now() - interval '10 minutes') >= 5 then
+    raise exception 'You''ve sent a lot of feedback in a short time. Please try again in a few minutes.';
+  end if;
+  if (select count(*) from public.feedback_throttle) >= 100 then
+    raise exception 'We''re getting a lot of feedback right now. Please try again later.';
+  end if;
+
+  insert into public.feedback_throttle (requester) values (v_requester);
+  insert into public.feedback (category, rating, message, email)
+  values (p_category, p_rating, v_message, v_email);
+end;
+$$;
+
+revoke execute on function public.submit_feedback(text, integer, text, text) from public;
+grant  execute on function public.submit_feedback(text, integer, text, text) to anon, authenticated;
