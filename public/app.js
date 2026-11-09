@@ -14,6 +14,11 @@ const AUTO_REFRESH_MS = 30_000;
 // separately refuses undos older than 15 minutes.)
 const UNDO_POPUP_MS = 8_000;
 
+// When Anabel Taylor Hall (and so the freedge) is open, every day, as hours
+// on a 24-hour clock in Ithaca time: 8am up to 11pm.
+const OPEN_HOUR = 8;
+const CLOSE_HOUR = 23;
+
 // Units a person can choose when adding an item. Must match the list in
 // supabase/schema.sql, which is what actually enforces it.
 const UNITS = ['servings', 'items', 'containers', 'bags'];
@@ -116,6 +121,7 @@ const els = {
   fridgeInterior: document.getElementById('fridge-interior'),
   fridgeDoor: document.getElementById('fridge-door'),
   doorNote: document.getElementById('door-note'),
+  hoursBadge: document.getElementById('hours-badge'),
   openFridgeBtn: document.getElementById('open-fridge-btn'),
   closeFridgeBtn: document.getElementById('close-fridge-btn'),
   undoToast: document.getElementById('undo-toast'),
@@ -268,6 +274,20 @@ function doorNoteText() {
   return count === 1 ? '1 thing inside!' : `${count} things inside!`;
 }
 
+// "Open now · until 11pm" or "Closed · opens at 8am", worked out in Ithaca
+// time so it's right even for someone whose phone is set to another zone.
+function renderHoursBadge() {
+  const hour = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).format(new Date()));
+  const open = hour >= OPEN_HOUR && hour < CLOSE_HOUR;
+  els.hoursBadge.textContent = open ? 'Open now · until 11pm' : 'Closed · opens at 8am';
+  els.hoursBadge.classList.toggle('closed', !open);
+  els.hoursBadge.hidden = false;
+}
+
 // ---------------------------------------------------------------------------
 // Opening and closing the fridge
 // ---------------------------------------------------------------------------
@@ -284,6 +304,7 @@ function openFridge() {
   els.fridgeInterior.inert = false; // items can be tapped now
   els.openFridgeBtn.hidden = true;
   els.openFridgeBtn.setAttribute('aria-expanded', 'true');
+  els.fridgeDoor.setAttribute('aria-label', 'Close the fridge');
 }
 
 function closeFridge() {
@@ -294,6 +315,7 @@ function closeFridge() {
   els.fridgeInterior.inert = true;
   els.openFridgeBtn.hidden = false;
   els.openFridgeBtn.setAttribute('aria-expanded', 'false');
+  els.fridgeDoor.setAttribute('aria-label', 'Open the fridge');
   // The fridge shrinks back to door height, so bring it into view.
   els.fridge.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
@@ -803,7 +825,8 @@ els.feedbackDialog.addEventListener('click', (event) => {
 
 els.refreshBtn.addEventListener('click', loadItems);
 els.openFridgeBtn.addEventListener('click', openFridge);
-els.fridgeDoor.addEventListener('click', openFridge);
+// The door stays hanging open on the left, so tapping it closes it again
+els.fridgeDoor.addEventListener('click', () => (isFridgeOpen() ? closeFridge() : openFridge()));
 els.closeFridgeBtn.addEventListener('click', closeFridge);
 els.undoBtn.addEventListener('click', undoLastAction);
 
@@ -835,4 +858,6 @@ els.addDialog.addEventListener('close', () => {
 els.addUnit.replaceChildren(...UNITS.map((unit) => new Option(unit, unit)));
 renderAllergenOptions();
 renderFeedbackOptions();
+renderHoursBadge();
+setInterval(renderHoursBadge, 60_000);
 loadItems();

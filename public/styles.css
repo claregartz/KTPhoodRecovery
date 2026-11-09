@@ -82,6 +82,20 @@ a { color: var(--green-strong); }
 }
 .subtitle { margin: 0; color: var(--muted); font-size: 0.875rem; }
 
+/* "Inside Anabel Taylor Hall · Open daily 8am–11pm" and the open/closed badge */
+.location { margin: 4px 0 0; color: var(--body); font-size: 0.9rem; }
+.hours-badge {
+  display: inline-block;
+  margin: 6px 0 2px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--green-tint);
+  color: var(--green-strong);
+  font-size: 0.8rem;
+}
+.hours-badge::before { content: "● "; }
+.hours-badge.closed { background: var(--surface); color: var(--muted); }
+
 main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
 /* "—— In the fridge now ——": text with a line on each side */
@@ -151,7 +165,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   border: 3px solid #c9d0cc;
   border-radius: 22px;
   background: #ffffff;
-  perspective: 1600px; /* how "deep" the 3D door swing looks */
+  perspective: 4000px; /* how "deep" the 3D door swing looks */
+  /* Look at the door from straight in front of the hinge, so the swinging
+     door stays to the right of it and never runs off the left of the screen */
+  perspective-origin: left center;
   box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.25);
 }
 /* Two little feet under the fridge */
@@ -183,6 +200,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .fridge[data-state="open"] .fridge-interior {
   height: auto;
   min-height: var(--fridge-height);
+  /* Room for the open door hanging on the left */
+  padding-left: clamp(44px, 13%, 84px);
 }
 
 .fridge-top { display: flex; justify-content: flex-end; margin-bottom: 10px; }
@@ -205,6 +224,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   left: -3px;
   width: calc(100% + 6px);
   height: calc(var(--fridge-height) + 6px);
+  z-index: 1;
   padding: 0;
   border: 3px solid #c9d0cc;
   border-radius: 22px;
@@ -212,22 +232,20 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   box-shadow: inset -6px 0 12px -8px rgb(0 0 0 / 0.15);
   cursor: pointer;
   transform-origin: left center; /* the hinge */
-  /* Closing: swing back in, and become visible right away */
-  transition: transform 0.7s cubic-bezier(0.3, 0.8, 0.3, 1), opacity 0.15s ease;
+  /* Closing: swing back shut with a soft landing */
+  transition: transform 0.7s cubic-bezier(0.3, 0.8, 0.3, 1);
 }
 .fridge-door:focus-visible { outline: 3px solid var(--green); outline-offset: 4px; }
 
-/* Opening: swing out past 90°, then fade away so it's out of the way */
+/* Opening: swing almost all the way open and stay there, hanging off the
+   hinge on the left like a real fridge door. Tapping it closes the fridge. */
 .fridge[data-state="open"] .fridge-door {
-  transform: rotateY(-110deg);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition:
-    transform 0.8s cubic-bezier(0.5, 0, 0.3, 1),
-    opacity 0.25s ease 0.55s,
-    visibility 0s linear 0.8s;
+  transform: rotateY(-84deg);
+  transition: transform 0.8s cubic-bezier(0.5, 0, 0.3, 1);
 }
+/* The door's contents are just decoration once it's open */
+.fridge[data-state="open"] .door-note,
+.fridge[data-state="open"] .door-magnet { opacity: 0; transition: opacity 0.2s ease 0.4s; }
 
 /* Line where the freezer door would be */
 .door-seam {
@@ -672,4 +690,7 @@ textarea:focus { outline: none; border-color: var(--green); }
 @media (min-width: 700px) {
   .logo { height: 80px; }
   .item-list { gap: 16px; }
+  /* The fridge is wider here, so the door swings a little further to stay slim */
+  .fridge[data-state="open"] .fridge-door { transform: rotateY(-87deg); }
+  .fridge[data-state="open"] .fridge-interior { padding-left: 56px; }
 }

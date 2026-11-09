@@ -31,7 +31,11 @@ at a glance and lets anyone keep that answer accurate.
 
 - **Open the fridge:** the app starts with a closed fridge (a sticky note
   says how many things are inside). Tap **Open the fridge** and the door
-  swings open to show the items on shelves. **Close ✕** shuts it again.
+  swings open to show the items on shelves, and stays hanging open on the
+  left. **Close ✕**, or tapping the open door, shuts it again.
+- **Where and when:** the header says the freedge is inside Anabel Taylor
+  Hall (linked to a map) and open daily 8am–11pm, with a live
+  "Open now" / "Closed" badge worked out in Ithaca time.
 - **See what's in the fridge:** each item and how much is left
   (e.g. "Lasagna: 10 servings · updated 5 min ago").
 - **Add an item:** name, whole-number quantity, and a unit
