@@ -303,6 +303,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   min-height: 52px;
   font-size: 1.1rem;
   box-shadow: 0 6px 14px -6px rgb(0 0 0 / 0.35);
+  z-index: 2; /* in front of the door (z-index 1) */
 }
 
 /* For people who turn on "Reduce motion" on their phone: no swinging */
