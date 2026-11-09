@@ -22,8 +22,9 @@ at a glance and lets anyone keep that answer accurate.
 4. [How it works (architecture)](#how-it-works-architecture)
 5. [Project structure](#project-structure)
 6. [Database functions](#database-functions)
-7. [Known limitations](#known-limitations)
-8. [Team workflow and git guide](#team-workflow-and-git-guide)
+7. [Usage stats](#usage-stats)
+8. [Known limitations](#known-limitations)
+9. [Team workflow and git guide](#team-workflow-and-git-guide)
 
 ---
 
@@ -176,7 +177,8 @@ KTPhoodRecovery/
 ├── package.json         ← project info and the `npm start` script
 ├── .gitignore           ← files git should ignore
 ├── supabase/
-│   └── schema.sql       ← table, permissions, and functions. Run in Supabase's SQL Editor
+│   ├── schema.sql       ← table, permissions, and functions. Run in Supabase's SQL Editor
+│   └── stats.sql        ← read-only usage queries (foods logged, busiest hours…)
 └── public/              ← the app itself
     ├── index.html       ← page structure
     ├── styles.css       ← mobile-first styling in FRN colors (always light mode)
@@ -296,6 +298,23 @@ Example item:
   "diet": "vegetarian"
 }
 ```
+
+## Usage stats
+
+Two places, for two kinds of numbers:
+
+- **Visitors** (how many people open the app, phone vs. computer, which
+  days): Vercel → the project → **Analytics**. This uses Vercel Web
+  Analytics, which doesn't use cookies. It has to be turned on once in the
+  project's Analytics tab; `index.html` already loads its script.
+- **Food** (items logged, amounts added and taken, top foods, busiest hours,
+  how long food lasts, feedback ratings): the queries in
+  `supabase/stats.sql`. Paste one at a time into Supabase's SQL Editor. They
+  only read data. Every add, take, and empty is already recorded in the
+  `actions` table, so nothing extra is tracked for this.
+
+Testing on the live site counts toward both, since it's the same site and
+database.
 
 ## Known limitations
 
