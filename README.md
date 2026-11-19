@@ -301,19 +301,29 @@ Example item:
 
 ## Usage stats
 
-Two places, for two kinds of numbers:
+Three places:
 
-- **Visitors** (how many people open the app, phone vs. computer, which
-  days): Vercel → the project → **Analytics**. This uses Vercel Web
-  Analytics, which doesn't use cookies. It has to be turned on once in the
-  project's Analytics tab; `index.html` already loads its script.
+- **Visitors and usage over time** (unique visitors, returning visitors,
+  what people do in the app): [PostHog](https://us.posthog.com), loaded by
+  `public/analytics.js` with the key in `public/config.js`. **Web analytics**
+  shows visitors and page views; **Product analytics** charts the events
+  `item_added`, `item_taken`, `item_emptied`, `undo_used`, `fridge_opened`
+  and `feedback_sent`. It uses no cookies (the anonymous ID is kept in
+  localStorage), session recording and autocapture are off, and it never
+  sends food names, feedback text or emails. Nothing is sent when running
+  on localhost. The free plan keeps about a year of data, so note down
+  all-time totals now and then.
+- **Visitors, the quick version**: Vercel → the project → **Analytics**.
+  This uses Vercel Web Analytics, which doesn't use cookies. It has to be
+  turned on once in the project's Analytics tab; `index.html` already loads
+  its script. The free plan only keeps a short history.
 - **Food** (items logged, amounts added and taken, top foods, busiest hours,
   how long food lasts, feedback ratings): the queries in
   `supabase/stats.sql`. Paste one at a time into Supabase's SQL Editor. They
   only read data. Every add, take, and empty is already recorded in the
   `actions` table, so nothing extra is tracked for this.
 
-Testing on the live site counts toward both, since it's the same site and
+Testing on the live site counts toward all of them, since it's the same site and
 database.
 
 ## Known limitations
