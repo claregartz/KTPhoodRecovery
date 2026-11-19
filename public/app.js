@@ -191,9 +191,10 @@ async function loadItems() {
 // Runs an action (take / empty), then reloads the list so everyone's
 // changes, not just ours, show up. `message` describes the change for the
 // Undo popup, e.g. "Took 2 servings of Lasagna".
-async function runItemAction(name, args, message) {
+async function runItemAction(name, args, message, event) {
   try {
     const undoToken = await callFunction(name, args);
+    track(event.name, event.properties);
     rememberLastAction(undoToken, message);
     state.openPanel = null;
   } catch (err) {
@@ -206,12 +207,14 @@ function takeItem(item, amount) {
   return runItemAction(
     'take_item',
     { p_id: item.id, p_amount: amount },
-    `Took ${amountText(amount, item.unit)} of ${item.name}`
+    `Took ${amountText(amount, item.unit)} of ${item.name}`,
+    { name: 'item_taken', properties: { amount, unit: item.unit } }
   );
 }
 
 function emptyItem(item) {
-  return runItemAction('empty_item', { p_id: item.id }, `Marked ${item.name} as empty`);
+  return runItemAction('empty_item', { p_id: item.id }, `Marked ${item.name} as empty`,
+    { name: 'item_emptied' });
 }
 
 // Undo only ever reverses this person's own last change: the database
@@ -240,6 +243,7 @@ async function undoLastAction() {
   state.lastAction = null;
   try {
     await callFunction('undo_action', { p_token: action.token });
+    track('undo_used');
   } catch (err) {
     showError(err.message);
   } finally {
@@ -301,6 +305,7 @@ function isFridgeOpen() {
 function openFridge() {
   if (isFridgeOpen()) return;
   els.fridge.dataset.state = 'open';
+  track('fridge_opened');
   els.fridgeInterior.inert = false; // items can be tapped now
   els.openFridgeBtn.hidden = true;
   els.openFridgeBtn.setAttribute('aria-expanded', 'true');
@@ -547,6 +552,13 @@ els.addForm.addEventListener('submit', async (event) => {
     // The database stacks it onto a matching item when there is one (see
     // add_item in supabase/schema.sql). Then it has more than we added.
     const stacked = saved.item.quantity > item.quantity;
+    track('item_added', {
+      quantity: item.quantity,
+      unit: item.unit,
+      stacked,
+      diet: item.diet,
+      allergen_answer: item.allergens === null ? 'not_sure' : item.allergens.length ? 'some' : 'none',
+    });
     rememberLastAction(saved.undo_token, stacked
       ? `Added ${item.quantity} to ${saved.item.name}, now ${amountText(saved.item.quantity, saved.item.unit)}`
       : `Added ${amountText(item.quantity, item.unit)} of ${item.name}`);
@@ -795,6 +807,7 @@ els.feedbackForm.addEventListener('submit', async (event) => {
       return;
     }
     showFeedbackThanks(Boolean(feedback.p_email));
+    track('feedback_sent', { category: feedback.p_category, rating: feedback.p_rating });
   } catch {
     showFeedbackError('Couldn\'t send your feedback. Check your connection and try again. What you typed is still here.');
   } finally {
