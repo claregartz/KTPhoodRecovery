@@ -200,8 +200,6 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .fridge[data-state="open"] .fridge-interior {
   height: auto;
   min-height: var(--fridge-height);
-  /* Room for the open door hanging on the left */
-  padding-left: clamp(44px, 13%, 84px);
 }
 
 .fridge-top { display: flex; justify-content: flex-end; margin-bottom: 10px; }
@@ -232,20 +230,28 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   box-shadow: inset -6px 0 12px -8px rgb(0 0 0 / 0.15);
   cursor: pointer;
   transform-origin: left center; /* the hinge */
-  /* Closing: swing back shut with a soft landing */
-  transition: transform 0.7s cubic-bezier(0.3, 0.8, 0.3, 1);
+  backface-visibility: hidden; /* past 90° we'd see its back; hide it instead */
+  /* Closing: the door reappears at once and swings back shut with a soft landing */
+  transition:
+    transform 0.7s cubic-bezier(0.3, 0.8, 0.3, 1),
+    opacity 0.15s ease,
+    visibility 0s;
 }
 .fridge-door:focus-visible { outline: 3px solid var(--green); outline-offset: 4px; }
 
-/* Opening: swing almost all the way open and stay there, hanging off the
-   hinge on the left like a real fridge door. Tapping it closes the fridge. */
+/* Opening: swing the door out past edge-on and fade it as it goes, so once
+   the fridge is open the door is gone and the whole width is for the food.
+   visibility flips to hidden only after the swing, so it can't be tapped. */
 .fridge[data-state="open"] .fridge-door {
-  transform: rotateY(-84deg);
-  transition: transform 0.8s cubic-bezier(0.5, 0, 0.3, 1);
+  transform: rotateY(-100deg);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.6s cubic-bezier(0.45, 0, 0.55, 1),
+    opacity 0.25s ease 0.3s,
+    visibility 0s linear 0.6s;
 }
-/* The door's contents are just decoration once it's open */
-.fridge[data-state="open"] .door-note,
-.fridge[data-state="open"] .door-magnet { opacity: 0; transition: opacity 0.2s ease 0.4s; }
 
 /* Line where the freezer door would be */
 .door-seam {
@@ -691,7 +697,4 @@ textarea:focus { outline: none; border-color: var(--green); }
 @media (min-width: 700px) {
   .logo { height: 80px; }
   .item-list { gap: 16px; }
-  /* The fridge is wider here, so the door swings a little further to stay slim */
-  .fridge[data-state="open"] .fridge-door { transform: rotateY(-87deg); }
-  .fridge[data-state="open"] .fridge-interior { padding-left: 56px; }
 }

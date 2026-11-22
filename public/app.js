@@ -304,23 +304,27 @@ function isFridgeOpen() {
 
 function openFridge() {
   if (isFridgeOpen()) return;
+  // The door and Open button disappear, so if one of them had keyboard
+  // focus, hand it to the Close button instead of losing it.
+  const hadFocus = [els.fridgeDoor, els.openFridgeBtn].includes(document.activeElement);
   els.fridge.dataset.state = 'open';
   track('fridge_opened');
   els.fridgeInterior.inert = false; // items can be tapped now
   els.openFridgeBtn.hidden = true;
   els.openFridgeBtn.setAttribute('aria-expanded', 'true');
-  els.fridgeDoor.setAttribute('aria-label', 'Close the fridge');
+  if (hadFocus) els.closeFridgeBtn.focus();
 }
 
 function closeFridge() {
   if (!isFridgeOpen()) return;
+  const hadFocus = els.fridgeInterior.contains(document.activeElement);
   state.openPanel = null;
   render();
   els.fridge.dataset.state = 'closed';
   els.fridgeInterior.inert = true;
   els.openFridgeBtn.hidden = false;
   els.openFridgeBtn.setAttribute('aria-expanded', 'false');
-  els.fridgeDoor.setAttribute('aria-label', 'Open the fridge');
+  if (hadFocus) els.openFridgeBtn.focus({ preventScroll: true });
   // The fridge shrinks back to door height, so bring it into view.
   els.fridge.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
@@ -838,8 +842,8 @@ els.feedbackDialog.addEventListener('click', (event) => {
 
 els.refreshBtn.addEventListener('click', loadItems);
 els.openFridgeBtn.addEventListener('click', openFridge);
-// The door stays hanging open on the left, so tapping it closes it again
-els.fridgeDoor.addEventListener('click', () => (isFridgeOpen() ? closeFridge() : openFridge()));
+// The door vanishes once open, so tapping it only ever opens the fridge
+els.fridgeDoor.addEventListener('click', openFridge);
 els.closeFridgeBtn.addEventListener('click', closeFridge);
 els.undoBtn.addEventListener('click', undoLastAction);
 
